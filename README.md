@@ -21,7 +21,7 @@ No Python packages, internet access, or AI service is required for local Linux c
 
 ## Quick start
 
-Read [B2R_QUICK_START.md](B2R_QUICK_START.md) for command examples, permissions, output handling, and recovery workflow. For incident response and manual rollback, see [RECOVERY_HARDENING.md](RECOVERY_HARDENING.md); for the short script reference, see [OFFLINE_USAGE.md](OFFLINE_USAGE.md).
+Read [B2R_QUICK_START.md](B2R_QUICK_START.md) for command examples, permissions, output handling, and recovery workflow. For manual HTML inspection, hostname clues and virtual-host checks after a web scan, read [Manual Web B2R Workflow](docs/WEB_MANUAL_WORKFLOW.md). For incident response and manual rollback, see [RECOVERY_HARDENING.md](RECOVERY_HARDENING.md); for the short script reference, see [OFFLINE_USAGE.md](OFFLINE_USAGE.md).
 
 ```bash
 ./scripts/network_enum.sh 192.0.2.10
