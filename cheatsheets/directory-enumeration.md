@@ -4,7 +4,48 @@
 
 **Scope:** Authorized TryHackMe rooms or explicitly assigned machines only. Keep scans bounded and avoid redirected or shared infrastructure.
 
-## A. Fastest option — ready-to-run Archangel scan (no SecLists required)
+## Start here — minimal ffuf command (recommended first)
+
+**On a TryHackMe B2R machine where `mafialive.thm` is already mapped to the assigned IP**, start with the simplest effective command. This is the exact form used successfully in the Archangel manual test:
+
+```bash
+ffuf -u http://mafialive.thm/FUZZ -w /usr/share/wordlists/dirb/common.txt
+```
+
+If the hostname does **not** resolve, first verify the lab's IP and map the **assigned** hostname locally. Or avoid changing DNS configuration by scanning the assigned IP and explicitly sending the Host header:
+
+```bash
+ffuf -u http://10.48.153.204/FUZZ \
+  -H "Host: mafialive.thm" \
+  -w /usr/share/wordlists/dirb/common.txt
+```
+
+The IP is **only** the lab instance used in this example; it may change when the room restarts. Both forms reach the same named virtual host if configured correctly.
+
+**Actual manual test result (Archangel):** `ffuf` completed 4,614 entries in roughly 13 seconds and found `robots.txt` returning HTTP 200. The next step is **read the discovered content**:
+
+```bash
+curl -s http://mafialive.thm/robots.txt
+```
+
+A quick check before running:
+
+```bash
+command -v ffuf
+ls -l /usr/share/wordlists/dirb/common.txt
+```
+
+**When to use extra options:** Default ffuf v2.3.0 used **40 threads** and roughly **171 requests/sec** in that test. This is fast but may be too aggressive for some labs or competition targets. If the room has request limits, or you see errors/timeouts, prefer this bounded version:
+
+```bash
+ffuf -u http://mafialive.thm/FUZZ \
+  -w /usr/share/wordlists/dirb/common.txt \
+  -t 5 -rate 10 -timeout 10
+```
+
+Only use requests against authorized targets and obey lab rules. The bundled wordlist below is an offline fallback; the Kali DIRB common list is the more comprehensive general-purpose first scan in this example.
+
+## A. Offline fallback / controlled alternative — ready-to-run Archangel scan (no SecLists required)
 
 This repository now includes its own **original 120-entry lightweight wordlist**:
 
