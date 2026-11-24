@@ -74,11 +74,11 @@ curl -sS --resolve 'DISCOVERED_HOSTNAME:80:AUTHORIZED_IP' \
 
 Replace `DISCOVERED_HOSTNAME` and `AUTHORIZED_IP` first. Do **not** copy this literal placeholder command as-is.
 
-## 5A. Optional directory and file discovery (authorized scope only)
+## 5. Optional directory and file discovery (authorized scope only)
 
 After confirming the site and virtual host, use a bounded wordlist scan with `ffuf` or `gobuster` when necessary. The full copy-paste examples (including Archangel's `Host` header) are in **[Directory Enumeration Cheatsheet](../cheatsheets/directory-enumeration.md)**. This step is manual; `web_enum.sh` does not automatically perform directory brute-force.
 
-## 5. Investigate the newly discovered site
+## 6. Investigate the newly discovered site
 
 If the hostname routes to a different app:
 
@@ -90,7 +90,7 @@ If the hostname routes to a different app:
 
 Our `web_enum.sh` accepts a URL, not a custom Host header; it cannot scan a name-based site via the IP unless that name resolves correctly. For manual Host header checking, use the commands above.
 
-## 6. Practical B2R decision path
+## 7. Practical B2R decision path
 
 ```text
 Authorized IP
@@ -103,6 +103,8 @@ Authorized IP
          |
          +-- Clues: hostname/email/domain? --> Confirm scope --> Host-header comparison
          |
+         +-- Discovered authorized site? --> Bounded ffuf/Gobuster directory enumeration
+         |
          +-- Links/forms/scripts? --> Inspect the authorized app workflow
          |
          +-- No useful clues? --> Manual enumeration within the assigned scope
@@ -112,7 +114,7 @@ Authorized IP
    +-- Investigation/recovery --> persistence_check.sh / recovery_audit.sh
 ```
 
-## 7. Offline use and boundaries
+## 8. Offline use and boundaries
 
 - Keep a local copy of this guide before a connectivity-restricted exercise, if organizers permit notes.
 - The current repository is private but **reports containing credentials, flags, and incident evidence should still be kept out of Git**.
