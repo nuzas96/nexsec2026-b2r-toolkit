@@ -5,7 +5,7 @@ Offline Boot2Root, Linux security assessment, incident response, and recovery to
 ## Cheatsheet references
 
 - [B2R & CTF Cheatsheet Library](cheatsheets/README.md) — **14 curated external resources** grouped into core B2R, supplemental, Windows/AD, and original references, with attribution and offline-use notes.
-**Practical Web commands:** [Directory & File Enumeration — ffuf/Gobuster](cheatsheets/directory-enumeration.md) for authorized directory brute-force after basic reconnaissance.
+**Practical Web commands:** [Directory & File Enumeration — ffuf/Gobuster](cheatsheets/directory-enumeration.md) for authorized directory brute-force after basic reconnaissance. The repository also includes an [original 120-entry quick web wordlist](wordlists/b2r-quick.txt), usable offline.
 
 ## Project purpose
 
