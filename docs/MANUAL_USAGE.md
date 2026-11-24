@@ -53,6 +53,8 @@ bash scripts/web_enum.sh http://AUTHORIZED_TARGET_IP | tee "$OUT/web.txt"
 - A reachable path or open port is **not**, by itself, proof of vulnerability.
 - The target must be reachable through the access path approved by the exercise organisers.
 
+**Don't stop at HTTP status codes.** Follow [Manual Web B2R Workflow](WEB_MANUAL_WORKFLOW.md) for exact commands to save and grep HTML, identify possible `.thm` hostnames, and compare the HTTP `Host` header on the same assigned IP. Those are **manual** actions; `web_enum.sh` does not automatically discover virtual hosts.
+
 ## 4. Linux host inspection (requires authorized local shell)
 
 Run these **on the Linux host being inspected**, not on Kali, if you want findings about that target. First use a non-root shell; repeat with the required privileges only where permitted and justified.
