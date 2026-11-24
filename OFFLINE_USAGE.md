@@ -4,25 +4,29 @@ These scripts collect investigation evidence. Findings are leads to verify again
 
 ## Network and web discovery
 
-### `scripts/network_enum.sh TARGET`
+### `scripts/network_enum.sh [--full] TARGET`
 
 Use from the assessment machine to find common TCP services and versions. Requires `nmap`; `showmount` adds NFS export results when installed. Run only against an authorized target.
 
 ```bash
 ./scripts/network_enum.sh 192.0.2.10
+# Optional full TCP sweep (bounded to 300s):
+./scripts/network_enum.sh --full 192.0.2.10
 ```
 
-Expected output includes Nmap's top-100 TCP results and, when available, the NFS export list. This is a bounded TCP scan and can miss UDP services or ports outside the top 100.
+The default mode scans the top 100 TCP ports with a 60-second host timeout. `--full` requests all 65,535 TCP ports but stops after a 300-second host timeout, possibly leaving unscanned ports. Neither mode covers UDP. An NFS RPC error is reported as **inconclusive** and does not establish that NFS is absent.
 
-### `scripts/web_enum.sh URL`
+### `scripts/web_enum.sh [--host HOSTNAME] URL`
 
 Use when HTTP or HTTPS is in scope. Requires `curl`. It requests `/`, `/robots.txt`, `/server-status`, `/uploads/`, and `/icons/` on the supplied origin, then prints root response headers.
 
 ```bash
 ./scripts/web_enum.sh http://192.0.2.10
+# Optional: discovered hostname confirmed in scope, same destination IP:
+./scripts/web_enum.sh --host lab.example.test http://192.0.2.10
 ```
 
-Expected output gives status, response size, content type, and selected headers. Requests have connection and total time limits. Redirects are reported without following them, keeping requests on the supplied origin. The path list is shallow and does not replace application mapping.
+Expected output gives status, response size, content type, and selected headers. Requests have connection and total time limits. Redirects are reported without following them, keeping requests on the supplied origin. The path list is shallow and does not replace application mapping. `--host` sets an HTTP Host header; it does not discover virtual hosts, and for HTTPS the Host header alone does not control TLS SNI. See `docs/WEB_MANUAL_WORKFLOW.md` for manual investigation.
 
 ## Local host checks
 
