@@ -75,3 +75,21 @@ Files are staged on the local branch only. No commit was made and nothing was pu
 - Actual remediation, service-availability verification after a change, and rollback need a disposable VM snapshot.
 - No new RootMe or Arena live scans/runs were made in Phase 4; their prior report evidence is preserved, not refreshed.
 - Push to GitHub remains intentionally unperformed.
+
+## Post-validation update — 25 November 2026
+
+This section supersedes the historical GitHub-staging statements above for the current state of the repository. The original Phase 4 results remain historical evidence and should not be mistaken for a post-update live-machine run.
+
+**New optional recon capabilities:**
+
+- `network_enum.sh TARGET` remains the default top-100 TCP scan with 60-second host timeout.
+- `network_enum.sh --full TARGET` explicitly requests all 65,535 TCP ports with a 300-second host timeout. This remains time-bounded but does not guarantee complete coverage, and UDP is not included.
+- The NFS export query now reports RPC failure/timeouts as **inconclusive** rather than implying the absence of NFS.
+- `web_enum.sh URL` retains the five predefined paths and a root header request.
+- `web_enum.sh --host HOSTNAME URL` sends a custom Host header to the same target URL/IP, only for already-discovered and explicitly in-scope names. This is not virtual-host name discovery and does not configure TLS SNI for HTTPS.
+
+**Regression checks:** `tests/recon_options_test.sh` was added. The updated Bash files were syntax-checked and their offline-mock test was executed against local reproductions of the checked-in script content: **PASS**. The test verifies the quick and full Nmap arguments, bounded timeouts, NFS failure messaging, six web requests, custom Host-header forwarding, default no-header compatibility, and rejection of invalid options. The test uses mock `nmap`, `curl`, and `showmount`, not a real target.
+
+**Not revalidated:** a live Nmap full-port scan, a live HTTP virtual host scan with the new flag, ShellCheck on these post-update changes, and the historical recovery/firewall/rollback gaps. Earlier PASS/PARTIAL classifications in this report are unchanged; the new optional capabilities should be treated as **offline-mock validated only** pending a permitted real-target exercise.
+
+Current GitHub main contains the merged scripts, docs, bundled web wordlist and cheatsheets; the earlier 'not pushed' section describes an older staging state.
