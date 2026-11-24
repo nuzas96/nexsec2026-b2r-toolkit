@@ -1,97 +1,198 @@
-# Directory & File Enumeration — B2R Cheatsheet
+# Directory & File Enumeration — Copy-Paste B2R Cheatsheet
 
-Use this **after** basic network/web checks to look for additional *in-scope* directories and files. This is **wordlist-based directory discovery**, not password guessing. Neither an HTTP status nor a discovered path automatically proves a vulnerability.
+**Purpose:** Find in-scope web paths by trying words from a directory/file **wordlist**. This is **not** password brute-forcing. An HTTP 200/403/redirect is a clue, not proof of a security flaw.
 
-**Scope:** Run only against a TryHackMe machine or system assigned to you. Use a short, controlled scan. Do not recursively bombard shared services, use unapproved targets, or follow an out-of-scope redirect.
+**Scope:** Authorized TryHackMe rooms or explicitly assigned machines only. Keep scans bounded and avoid redirected or shared infrastructure.
 
-## 0. Check tools and wordlist on Kali
+## A. Fastest option — ready-to-run Archangel scan (no SecLists required)
+
+This repository now includes its own **original 120-entry lightweight wordlist**:
+
+**[wordlists/b2r-quick.txt](../wordlists/b2r-quick.txt)**
+
+The following block can be pasted **inside a current clone of this repository** on Kali. It assumes that the lab instance is still **10.48.153.204**, and that the `mafialive.thm` hostname is in scope. Change the two assignments if TryHackMe reassigns the IP or you use a different lab.
 
 ```bash
+# Run from the ROOT of this GitHub repository
+IP="10.48.153.204"
+HOST="mafialive.thm"
+WL="$PWD/wordlists/b2r-quick.txt"
+OUT="$HOME/nexsec-manual/archangel"
+
+umask 077
+mkdir -p "$OUT"
+
 command -v ffuf
-command -v gobuster
-ls -lh /usr/share/wordlists/dirb/common.txt
+ls -l "$WL"
+
+# Scan virtual host confirmed by manual HTML investigation:
+ffuf -u "http://$IP/FUZZ" \
+  -H "Host: $HOST" \
+  -w "$WL" \
+  -t 5 -rate 10 -timeout 10 -maxtime 120 -ac \
+  -of json -o "$OUT/ffuf-quick-vhost.json"
 ```
 
-Use a wordlist **already available locally**. If the example file is absent, find one in your approved offline wordlist collection and change `WL` accordingly. Both tools are alternatives; **you usually need only one**.
+**If `ffuf` is not installed**, install it before the event using an approved Kali package source (`sudo apt install ffuf`). If the wordlist file is missing, use the [latest GitHub clone](https://github.com/nuzas96/nexsec2026-b2r-toolkit) or follow the self-contained fallback in section D.
 
-## 1. Set up the authorized target and private results folder
+**Want to scan the plain IP homepage instead?** Run the same command without `-H "Host: $HOST"`, saving to a different output filename. The IP homepage and the virtual host may return **different websites**.
 
-Example for the **authorized TryHackMe Archangel lab** used in manual testing (the IP may change when you redeploy):
+## B. Wordlist choices — which one should I use?
+
+| Wordlist | Typical Kali location | Practical use |
+| --- | --- | --- |
+| **Our B2R quick list** | `wordlists/b2r-quick.txt` (within this repo) | Fast first pass; no extra wordlist package |
+| **DIRB common** | `/usr/share/wordlists/dirb/common.txt` | General-purpose first pass |
+| **SecLists common** | `/usr/share/seclists/Discovery/Web-Content/common.txt` | Alternative short/mid list |
+| **SecLists RAFT small directories** | `/usr/share/seclists/Discovery/Web-Content/raft-small-directories.txt` | More directory names |
+| **SecLists DirBuster medium** | `/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt` | Much larger; avoid if short time |
+| **DirBuster package variant** | `/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt` | Alternative install-dependent path |
+
+**Do not assume these paths all exist on your Kali.** The SecLists medium filename differs from the older DirBuster package filename. Check before selecting one.
+
+```bash
+# Find wordlists already installed:
+for path in \
+  "$PWD/wordlists/b2r-quick.txt" \
+  /usr/share/wordlists/dirb/common.txt \
+  /usr/share/seclists/Discovery/Web-Content/common.txt \
+  /usr/share/seclists/Discovery/Web-Content/raft-small-directories.txt \
+  /usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt \
+  /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+do
+  if [ -f "$path" ]; then
+    printf 'FOUND: %s (%s lines)\n' "$path" "$(wc -l < "$path")"
+  else
+    printf 'MISSING: %s\n' "$path"
+  fi
+done
+```
+
+**Install wordlists on Kali (only when internet/package access is permitted):**
+
+```bash
+sudo apt update
+sudo apt install -y ffuf gobuster dirb
+# Optional: a LARGE collection; download and store BEFORE an offline event:
+sudo apt install -y seclists
+
+# Check the actual locations after installation:
+ls -lh /usr/share/wordlists/dirb/common.txt
+ls -lh /usr/share/seclists/Discovery/Web-Content/common.txt
+```
+
+References: [Kali DIRB package](https://www.kali.org/tools/dirb/), [Kali SecLists package](https://www.kali.org/tools/seclists/), [SecLists web wordlists](https://github.com/danielmiessler/SecLists/tree/master/Discovery/Web-Content).
+
+## C. One-click upgrade from quick to common/medium (copy-paste)
+
+From the project root, following section A (so `IP`, `HOST`, `OUT` are already set):
+
+**DIRB common scan** — choose this first, if installed.
+
+```bash
+WL="/usr/share/wordlists/dirb/common.txt"
+if [ -f "$WL" ]; then
+  ffuf -u "http://$IP/FUZZ" -H "Host: $HOST" \
+    -w "$WL" -t 5 -rate 10 -timeout 10 -maxtime 600 -ac \
+    -of json -o "$OUT/ffuf-dirb-common.json"
+else
+  echo "DIRB common not installed; use the bundled wordlists/b2r-quick.txt"
+fi
+```
+
+**SecLists common scan** — alternative if already installed.
+
+```bash
+WL="/usr/share/seclists/Discovery/Web-Content/common.txt"
+if [ -f "$WL" ]; then
+  ffuf -u "http://$IP/FUZZ" -H "Host: $HOST" \
+    -w "$WL" -t 5 -rate 10 -timeout 10 -maxtime 600 -ac \
+    -of json -o "$OUT/ffuf-seclists-common.json"
+else
+  echo "SecLists missing; see section B to install before the event"
+fi
+```
+
+**SecLists medium scan** — only if the small scans do not find what you need. The runtime is capped and **may not exhaust the entire list**.
+
+```bash
+WL="/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt"
+if [ -f "$WL" ]; then
+  ffuf -u "http://$IP/FUZZ" -H "Host: $HOST" \
+    -w "$WL" -t 5 -rate 10 -timeout 10 -maxtime 600 -ac \
+    -of json -o "$OUT/ffuf-medium-partial.json"
+else
+  echo "Medium SecLists wordlist not found at this path"
+fi
+```
+
+Use `-rate 10` and limited concurrency to avoid unnecessarily stressing the lab. **No script automatically uses a medium list.**
+
+## D. Fallback — create a tiny custom wordlist from the terminal
+
+If you do not have this repository copy or system wordlists, this short list can be created **without internet** and used immediately with an already-installed `ffuf`.
+
+```bash
+mkdir -p "$HOME/nexsec-wordlists" "$HOME/nexsec-manual/archangel"
+cat > "$HOME/nexsec-wordlists/quick-web.txt" <<'EOF'
+admin
+admin.php
+login
+login.php
+panel
+dashboard
+portal
+uploads
+upload
+upload.php
+backup
+backups
+config
+config.php
+api
+dev
+test
+test.php
+robots.txt
+sitemap.xml
+assets
+static
+images
+index.php
+.git
+.env
+EOF
+
+ffuf -u "http://10.48.153.204/FUZZ" \
+  -H "Host: mafialive.thm" \
+  -w "$HOME/nexsec-wordlists/quick-web.txt" \
+  -t 5 -rate 10 -timeout 10 -maxtime 120 -ac \
+  -of json -o "$HOME/nexsec-manual/archangel/ffuf-custom.json"
+```
+
+## E. Search extensions after you find relevant directories
+
+For PHP/HTML/text apps, this appends extensions to your selected list. It increases the number of requests.
+
+```bash
+WL="$PWD/wordlists/b2r-quick.txt"
+ffuf -u "http://$IP/FUZZ" -H "Host: $HOST" \
+  -w "$WL" -e .php,.html,.txt \
+  -t 5 -rate 10 -timeout 10 -maxtime 300 -ac \
+  -of json -o "$OUT/ffuf-extensions.json"
+```
+
+## F. Gobuster — alternative (choose one tool, not both by default)
+
+To use the bundled local wordlist on the named virtual host:
 
 ```bash
 IP="10.48.153.204"
 HOST="mafialive.thm"
-WL="/usr/share/wordlists/dirb/common.txt"
-
-umask 077
+WL="$PWD/wordlists/b2r-quick.txt"
 OUT="$HOME/nexsec-manual/archangel"
 mkdir -p "$OUT"
 
-test -f "$WL" && echo "[OK] Wordlist found" || echo "[ERROR] Wordlist missing; set WL to an existing file before scanning"
-```
-
-If you're using a different room, **replace the IP, hostname, and output folder** with values verified to belong to that room.
-
-## 2. ffuf — directory brute-force on the IP website
-
-```bash
-ffuf -u "http://$IP/FUZZ" \
-  -w "$WL" \
-  -t 5 -rate 10 -timeout 10 \
-  -ac \
-  -of json -o "$OUT/ffuf-ip.json"
-```
-
-- `FUZZ`: place in the URL where entries from the wordlist are substituted.
-- `-w`: wordlist; `-t 5`: five concurrent workers; `-rate 10`: cap at 10 requests/sec; `-timeout 10`: request timeout in seconds.
-- `-ac`: automatic calibration of similar noise responses. **Review unexpected/empty output** because calibration can suppress interesting responses.
-- `-o/-of`: save JSON results outside GitHub.
-
-## 3. ffuf — discover directories on the named virtual host
-
-When a hostname such as `mafialive.thm` is explicitly discovered in the HTML **and confirmed in scope**, specify the `Host` header while keeping the request on the same IP:
-
-```bash
-ffuf -u "http://$IP/FUZZ" \
-  -H "Host: $HOST" \
-  -w "$WL" \
-  -t 5 -rate 10 -timeout 10 \
-  -ac \
-  -of json -o "$OUT/ffuf-vhost.json"
-```
-
-This matters because the default IP website and the named site can serve **different content**. It works even if `mafialive.thm` is not in `/etc/hosts`.
-
-## 4. ffuf — look for common file extensions
-
-Try this **after** initial directory discovery if the application appears to use PHP/HTML/text files:
-
-```bash
-ffuf -u "http://$IP/FUZZ" \
-  -H "Host: $HOST" \
-  -w "$WL" \
-  -e .php,.html,.txt \
-  -t 5 -rate 10 -timeout 10 \
-  -ac
-```
-
-Extensions multiply the number of requests; keep them limited to formats that make sense for the assigned app.
-
-## 5. Gobuster — alternative to ffuf
-
-On the IP-based site:
-
-```bash
-gobuster dir \
-  -u "http://$IP/" \
-  -w "$WL" \
-  -t 5 --timeout 10s \
-  -o "$OUT/gobuster-ip.txt"
-```
-
-On the named virtual host:
-
-```bash
 gobuster dir \
   -u "http://$IP/" \
   -H "Host: $HOST" \
@@ -100,54 +201,52 @@ gobuster dir \
   -o "$OUT/gobuster-vhost.txt"
 ```
 
-For a focused file scan, add `-x php,html,txt` only if relevant. Check `gobuster dir --help` in your installed version for available options.
+For file extensions, add `-x php,html,txt` if it is relevant and the room allows the extra traffic. Confirm options with `gobuster dir --help` on your installed version. The `gobuster` example has no global request-rate option; keep the wordlist short and concurrency low.
 
-## 6. Read the results carefully
+## G. What to do with results
 
-| Status | Meaning | Next step |
+| HTTP result | Meaning | Next action |
 | --- | --- | --- |
-| `200` | Content returned | Visit or inspect the path and response body |
-| `301/302` | Redirect | Review `Location`; stay in scope |
-| `401` | Authentication required | Identify the intended authentication workflow; do not guess credentials |
-| `403` | Access forbidden | Record finding; not automatically exploitable |
-| `404` | Not found | Typically noise unless the app responds unusually |
-| `500` | Server error | Stop aggressive probing; investigate cautiously |
+| 200 | Page/file returned | Manually open and inspect its body |
+| 301 / 302 | Redirect | Review `Location` and stay in approved scope |
+| 401 | Authentication required | Review intended login flow (do not guess passwords) |
+| 403 | Access denied | Record as an observation, not a vulnerability |
+| 404 | Path absent | Expected for most guesses |
+| 500 | Server failure | Reduce/stop probing; investigate conservatively |
 
-A large set of paths with identical status/size may reflect a wildcard or custom error page. Compare with a made-up path before trusting results.
+Some sites return **200 for every invalid path**. Check one made-up URL to find the normal "not found" response before interpreting mass-scan results. ffuf `-ac` can help filter noise but can also hide interesting responses.
 
-## 7. Verify individual hits manually (same assigned IP)
+Manually verify a real hit on the authorized host:
 
 ```bash
-# Replace DISCOVERED_PATH with the path actually reported.
+# Replace PATH_FROM_SCAN with a real path discovered in output.
 curl -sS -i --connect-timeout 5 --max-time 15 \
-  -H "Host: $HOST" "http://$IP/DISCOVERED_PATH" | head -n 40
+  -H "Host: mafialive.thm" \
+  "http://10.48.153.204/PATH_FROM_SCAN" | head -n 45
 ```
 
-Inspect links, forms and scripts relevant to the app. An open directory, forbidden path or version string is only a clue, not evidence of compromise.
+## H. Troubleshooting and workflow
 
-## 8. Common errors
+- **Wordlist missing:** use our bundled `wordlists/b2r-quick.txt`, choose an actually-installed SecLists/DIRB path, or create a short custom list (section D).
+- **`ffuf: command not found` / `gobuster: command not found`:** install from Kali's approved repository **before** the exercise; these tools are not provided by the Bash scripts.
+- **Too many hits:** inspect wildcard/default responses and output sizes; don't call every 200 an exposed admin page.
+- **No hits:** inspect HTML, JavaScript, login forms and hostname clues. A wordlist cannot find every app route.
+- **Time-outs / packet loss:** verify VPN connectivity, reduce request rate, and avoid repeated aggressive scans.
 
-- `ffuf: command not found` or `gobuster: command not found`: tool is not installed on the assessment host. Install only through an approved method and before any offline event.
-- `Wordlist not found`: verify `WL` and local wordlist location.
-- Too many identical results: inspect wildcard responses; compare scans with and without `-ac`, or use a response-size filter **after** confirming a baseline.
-- Timeouts/packet loss: check VPN route and target health; reduce concurrency, don't increase it blindly.
-- `404` for every guess: the selected wordlist may not match the app, or the paths may genuinely be absent.
-
-## 9. Where this fits into the toolkit
+Workflow:
 
 ```text
-network_enum.sh -> web_enum.sh -> inspect HTML / hostnames
-                         |
-                         +-> ffuf or gobuster on authorized host
-                                  |
-                                  +-> verify interesting paths manually
-                                  +-> assess the app
+network_enum.sh -> web_enum.sh -> read HTML and discover hostname
+                 -> choose quick wordlist -> ffuf OR gobuster
+                 -> confirm interesting URL paths manually
+                 -> investigate authorized web application
+                 -> obtain authorized target shell, then Linux triage and priv-esc checks
 ```
 
-Our `web_enum.sh` **does not invoke ffuf or gobuster**. These are separate optional manual commands, so the Bash toolkit remains predictable and read-only by default.
+**Safety and tooling:** `web_enum.sh` does **not** automatically run ffuf or gobuster. Wordlist files and third-party binaries should be prepared offline through approved methods. Do not commit target responses, challenge flags, or credentials into this GitHub repository.
 
-### Upstream tool documentation
+### Documentation
 
-- [ffuf — official README](https://github.com/ffuf/ffuf)
-- [ffuf — CLI flags](https://github.com/ffuf/ffuf/wiki/CLI-flags)
-- [Gobuster — official repository](https://github.com/OJ/gobuster)
+- [ffuf official repository](https://github.com/ffuf/ffuf)
+- [ffuf CLI flags](https://github.com/ffuf/ffuf/wiki/CLI-flags)
+- [Gobuster official repository](https://github.com/OJ/gobuster)
