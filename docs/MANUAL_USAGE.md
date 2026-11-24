@@ -1,6 +1,6 @@
 # Manual usage — NEXSEC2026 B2R Toolkit
 
-This quick reference is based on the **actual `--help` output of the nine scripts** captured during local manual testing on 24 November 2026. For deeper instructions and limitations, read `B2R_QUICK_START.md`, `OFFLINE_USAGE.md`, and `FINAL_VALIDATION.md` **after those files have been pushed**.
+This reference reflects the nine scripts and the optional reconnaissance flags added on 25 November 2026. It is usable from any permitted Linux assessment host (not specifically Kali). For deeper instructions and limitations, read `B2R_QUICK_START.md`, `OFFLINE_USAGE.md`, and `FINAL_VALIDATION.md`.
 
 > **Scope:** Run only against systems expressly assigned to you, through permitted access paths. These scripts do not automatically exploit, clean, or harden a system. The audit findings are indicators requiring human verification. Follow the event's instructions regarding tools, AI and offline materials.
 
@@ -46,10 +46,16 @@ bash scripts/network_enum.sh AUTHORIZED_TARGET_IP | tee "$OUT/network.txt"
 
 # Only if HTTP testing of this origin is authorized.
 bash scripts/web_enum.sh http://AUTHORIZED_TARGET_IP | tee "$OUT/web.txt"
+
+# Optional all-TCP scan (at most 300s; may be incomplete):
+bash scripts/network_enum.sh --full AUTHORIZED_TARGET_IP | tee "$OUT/network-full.txt"
+
+# Optional discovered hostname, confirmed in scope:
+bash scripts/web_enum.sh --host DISCOVERED_HOSTNAME http://AUTHORIZED_TARGET_IP | tee "$OUT/web-vhost.txt"
 ```
 
-- `network_enum.sh TARGET`: bounded top-100 TCP service scan and optional NFS export check.
-- `web_enum.sh URL`: checks a short list of paths on the supplied HTTP origin; **not** a comprehensive vulnerability scanner.
+- `network_enum.sh TARGET`: top-100 TCP scan, 60-second host timeout; optional `--full TARGET`: all TCP ports, 300-second host timeout. NFS RPC failures are inconclusive.
+- `web_enum.sh URL`: checks a short list of paths on the supplied HTTP origin, optionally using `--host HOSTNAME` to set the Host header; **not** a comprehensive vulnerability scanner.
 - A reachable path or open port is **not**, by itself, proof of vulnerability.
 - The target must be reachable through the access path approved by the exercise organisers.
 
