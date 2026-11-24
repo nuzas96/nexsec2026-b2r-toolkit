@@ -11,6 +11,9 @@ From the toolkit root on Kali / the approved assessment host:
 ```bash
 ./scripts/network_enum.sh AUTHORIZED_IP
 ./scripts/web_enum.sh http://AUTHORIZED_IP
+
+# Only if required and approved (all TCP ports, time-bounded):
+./scripts/network_enum.sh --full AUTHORIZED_IP
 ```
 
 Typical output and what it means:
@@ -65,6 +68,14 @@ curl -sS -i --connect-timeout 5 --max-time 15 \
 
 Compare page title, response body, status, `Content-Length`, and redirects. A different response can indicate a **separate virtual host**, not necessarily a vulnerability.
 
+**New toolkit option:** Once the hostname is confirmed in scope, you can check the script's five paths and response headers against that virtual host directly:
+
+```bash
+./scripts/web_enum.sh --host DISCOVERED_HOSTNAME http://AUTHORIZED_IP
+```
+
+This uses an HTTP Host header, not hostname discovery. HTTPS virtual hosts may also require matching TLS SNI (see `curl --resolve` below).
+
 To make requests using the hostname without changing `/etc/hosts`, you may use `curl --resolve` on that same approved IP:
 
 ```bash
@@ -88,7 +99,7 @@ If the hostname routes to a different app:
 - Do not call a 403, login form or version string an exploit by itself.
 - Move to local Linux scripts **only when a valid, explicitly authorized shell is available**.
 
-Our `web_enum.sh` accepts a URL, not a custom Host header; it cannot scan a name-based site via the IP unless that name resolves correctly. For manual Host header checking, use the commands above.
+Our `web_enum.sh` now accepts `--host HOSTNAME` along with the assigned IP URL to check the five predefined paths on a named virtual host. It does **not** perform wordlist enumeration, discover the hostname automatically, or confirm vulnerabilities.
 
 ## 7. Practical B2R decision path
 
