@@ -76,7 +76,7 @@ Replace `DISCOVERED_HOSTNAME` and `AUTHORIZED_IP` first. Do **not** copy this li
 
 ## 5. Optional directory and file discovery (authorized scope only)
 
-After confirming the site and virtual host, use a bounded wordlist scan with `ffuf` or `gobuster` when necessary. The full copy-paste examples (including Archangel's `Host` header) are in **[Directory Enumeration Cheatsheet](../cheatsheets/directory-enumeration.md)**. This step is manual; `web_enum.sh` does not automatically perform directory brute-force.
+After confirming the site and virtual host, use a bounded wordlist scan with `ffuf` or `gobuster` when necessary. The full copy-paste examples (including Archangel's `Host` header) are in **[Directory Enumeration Cheatsheet](../cheatsheets/directory-enumeration.md)**. The repo includes its own [120-entry lightweight wordlist](../wordlists/b2r-quick.txt), and the cheatsheet explains Kali DIRB and SecLists locations, installation and fallback commands. This step is manual; `web_enum.sh` does not automatically perform directory brute-force.
 
 ## 6. Investigate the newly discovered site
 
