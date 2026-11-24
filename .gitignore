@@ -1,0 +1,46 @@
+# Local progress and machine-specific evidence may include flags, IPs, or user data.
+/PROGRESS.md
+/labs/
+/artifacts/
+/logs/
+/test-results/
+/test-output/
+**/artifacts/logs/
+
+# Credentials, private keys, and local environment configuration.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+*secret*
+*token*
+**/*flag*
+**/*flags*
+
+# Generated reports and temporary output.
+*.log
+*.out
+*.result
+*.tmp
+*.swp
+*.bak
+*.pcap
+*.pcapng
+*.core
+recovery-audit*.txt
+hardening-plan*.txt
+baseline-*.txt
+service-*.txt
+target-*.txt
+
+# Local tooling and caches.
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
