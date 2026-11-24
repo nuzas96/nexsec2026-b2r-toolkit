@@ -2,22 +2,26 @@
 
 This offline guide assumes `scripts/` is the current directory’s child and the target is explicitly authorized. Run network tools from Kali or another assessment host. Run local audit tools inside an authorized shell on the Linux target. Findings are leads; none of the scripts exploits, deletes, or remediates anything.
 
-## 1. Reconnaissance from Kali
+## 1. Reconnaissance from an authorized assessment host
 
 Check each command before using it; the forms below match each script’s `--help` output.
 
 ```bash
 ./scripts/network_enum.sh 192.0.2.10
 ./scripts/web_enum.sh http://192.0.2.10
+
+# Optional, only when needed and permitted:
+./scripts/network_enum.sh --full 192.0.2.10
+./scripts/web_enum.sh --host lab.example.test http://192.0.2.10
 ```
 
-`network_enum.sh TARGET` requires `nmap`, performs a bounded top-100 TCP service scan, and optionally queries NFS exports with `showmount`. `web_enum.sh URL` requires `curl` and checks a fixed short list of paths on that origin. It has request time limits and does not follow redirects. These scans can miss services and routes; they do not prove a host is safe.
+`network_enum.sh TARGET` requires `nmap` and defaults to the top 100 TCP ports (60-second host timeout). The explicit `--full TARGET` option checks all 65,535 TCP ports with a 300-second host timeout, and may still be incomplete when the timeout is reached. An NFS RPC failure is **inconclusive**, not proof that NFS is absent. `web_enum.sh URL` requires `curl`, checks five paths and prints the root headers. The optional `--host HOSTNAME` sends an HTTP Host header on the same URL/IP, enabling checks of a hostname already discovered and authorized. It has request time limits and does not follow redirects. These scans can miss services and routes; they do not prove a host is safe.
 
 Replace `192.0.2.10` only with an in-scope address. Never broaden the target list based on a scan result.
 
 ### Important: next steps after a web scan
 
-**The scan is only the first step.** Inspect homepage HTML, search for hostnames/email domains, and—if a discovered hostname is authorized—compare the page using an HTTP `Host` header. The copy-paste commands and decision path are in [Manual Web B2R Workflow](docs/WEB_MANUAL_WORKFLOW.md). You can also run `./scripts/web_enum.sh --help` for a brief reminder. The script does not perform these steps automatically.
+**The scan is only the first step.** Inspect homepage HTML, search for hostnames/email domains, and—if a discovered hostname is authorized—compare the page using an HTTP `Host` header. The copy-paste commands and decision path are in [Manual Web B2R Workflow](docs/WEB_MANUAL_WORKFLOW.md). You can also run `./scripts/web_enum.sh --help` for a brief reminder. The script does not discover hostnames automatically. After discovering and authorizing a hostname, `--host` lets you run the same five checks against that virtual host; inspect HTML and use wordlist tools manually as needed.
 
 ## 2. Obtain authorized local access
 
@@ -88,8 +92,8 @@ If a change breaks access or service, use a known-good console/session and resto
 
 | Script | Where to run | Permission | Main requirements |
 |---|---|---|---|
-| `network_enum.sh TARGET` | Kali / assessment host | Ordinary user usually works | `nmap`; optional `showmount`; route to target |
-| `web_enum.sh URL` | Kali / assessment host | Ordinary user | `curl`; route to target |
+| `network_enum.sh [--full] TARGET` | Assessment host | Ordinary user usually works | `nmap`; optional `showmount`; route to target |
+| `web_enum.sh [--host HOSTNAME] URL` | Assessment host | Ordinary user | `curl`; route to target |
 | `linux_triage.sh` | Linux target shell | Ordinary user; root improves process/socket visibility | Bash, `awk`, `date`, `timeout`, `head`; `ps`, `ss`, `ip`, service manager are optional |
 | `privesc_check.sh` | Linux target shell | Run as the low-privilege account; no root required | Bash, `find`, `timeout`, `sed`, `head`, `ls`, `stat`, `grep`, `dirname`; optional `sudo`, `getcap`, `strings` |
 | `persistence_check.sh` | Linux target shell | Ordinary user; root improves coverage | Bash, `date`, `timeout`, `awk`, `dirname`, plus `recovery_audit.sh` requirements |
