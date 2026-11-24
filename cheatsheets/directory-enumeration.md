@@ -27,7 +27,7 @@ umask 077
 OUT="$HOME/nexsec-manual/archangel"
 mkdir -p "$OUT"
 
-test -f "$WL" || { echo "Wordlist not found: $WL"; exit 1; }
+test -f "$WL" && echo "[OK] Wordlist found" || echo "[ERROR] Wordlist missing; set WL to an existing file before scanning"
 ```
 
 If you're using a different room, **replace the IP, hostname, and output folder** with values verified to belong to that room.
