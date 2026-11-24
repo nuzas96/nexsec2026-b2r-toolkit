@@ -14,6 +14,7 @@ if (($# == 1)) && [[ $1 == -h || $1 == --help ]]; then
   echo '  Compare the default response with the Host-header response.'
   echo '  Never test discovered names outside the assigned scope.'
   echo '  Full workflow: docs/WEB_MANUAL_WORKFLOW.md'
+  echo '  Directory enumeration (ffuf/gobuster): cheatsheets/directory-enumeration.md'
   exit 0
 fi
 if (($# != 1)) || [[ -z ${1:-} ]]; then
