@@ -4,6 +4,16 @@ if (($# == 1)) && [[ $1 == -h || $1 == --help ]]; then
   echo "Usage: $0 URL"
   echo "Example: $0 http://192.0.2.10"
   echo 'Checks a short list of HTTP paths on the supplied origin.'
+  echo 'This is NOT full directory enumeration or virtual-host discovery.'
+  echo
+  echo 'Manual follow-up on an authorized target (examples):'
+  echo '  curl -sS http://AUTHORIZED_IP/ -o index.html'
+  echo '  grep -Ein '\''href=|src=|action=|mailto:|@|<!--|TODO|login'\'' index.html | head -n 80'
+  echo '  grep -Eoi '\''[A-Za-z0-9.-]+\\.thm'\'' index.html | sort -u  # TryHackMe only'
+  echo '  curl -sS -i -H "Host: DISCOVERED_HOSTNAME" http://AUTHORIZED_IP/ | head -n 45'
+  echo '  Compare the default response with the Host-header response.'
+  echo '  Never test discovered names outside the assigned scope.'
+  echo '  Full workflow: docs/WEB_MANUAL_WORKFLOW.md'
   exit 0
 fi
 if (($# != 1)) || [[ -z ${1:-} ]]; then
