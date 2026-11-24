@@ -5,6 +5,8 @@ Offline Boot2Root, Linux security assessment, incident response, and recovery to
 ## Cheatsheet references
 
 - [B2R & CTF Cheatsheet Library](cheatsheets/README.md) — **14 curated external resources** grouped into core B2R, supplemental, Windows/AD, and original references, with attribution and offline-use notes.
+**Practical Web commands:** [Directory & File Enumeration — ffuf/Gobuster](cheatsheets/directory-enumeration.md) for authorized directory brute-force after basic reconnaissance.
+
 ## Project purpose
 
 The nine Bash scripts support authorized investigation from reconnaissance through local privilege assessment, persistence review, recovery planning, baseline capture, and service verification. Scripts are read-only by default. Network and web enumeration require an authorized target; local checks require an authorized shell on the system being assessed.
