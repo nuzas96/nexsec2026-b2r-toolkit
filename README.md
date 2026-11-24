@@ -28,6 +28,10 @@ Read [B2R_QUICK_START.md](B2R_QUICK_START.md) for command examples, permissions,
 ```bash
 ./scripts/network_enum.sh 192.0.2.10
 ./scripts/web_enum.sh http://192.0.2.10
+
+# Optional reconnaissance modes for authorized targets:
+./scripts/network_enum.sh --full 192.0.2.10
+./scripts/web_enum.sh --host lab.example.test http://192.0.2.10
 ./scripts/linux_triage.sh
 ./scripts/privesc_check.sh
 ./scripts/recovery_audit.sh > recovery-audit.txt
@@ -36,7 +40,7 @@ Read [B2R_QUICK_START.md](B2R_QUICK_START.md) for command examples, permissions,
 ./scripts/service_verify.sh baseline-before.txt
 ```
 
-The example address is from the documentation-only range. Replace it only with an authorized lab target. Network scripts do not exploit the target. Local scripts require shell access on the assessed Linux machine.
+The example address is from the documentation-only range; `lab.example.test` is a placeholder hostname. Replace both only with an authorized lab target. `--full` checks all TCP ports subject to a 300-second timeout; `--host` sends an HTTP Host header but does not discover virtual hosts automatically. Network scripts do not exploit the target. Local scripts require shell access on the assessed Linux machine.
 
 ## Validation
 
@@ -46,6 +50,7 @@ Run syntax and static checks from the project root:
 for script in scripts/*.sh tests/*.sh; do bash -n "$script"; done
 shellcheck scripts/*.sh tests/*.sh
 tests/recovery_fixture_test.sh
+bash tests/recon_options_test.sh
 ```
 
 The fixture suite requires Bubblewrap/user namespaces and modifies only isolated temporary filesystems. It does not modify the host or a shared challenge system. See [FINAL_VALIDATION.md](FINAL_VALIDATION.md) for tested coverage and known gaps.
