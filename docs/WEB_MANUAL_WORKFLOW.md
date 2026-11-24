@@ -74,6 +74,10 @@ curl -sS --resolve 'DISCOVERED_HOSTNAME:80:AUTHORIZED_IP' \
 
 Replace `DISCOVERED_HOSTNAME` and `AUTHORIZED_IP` first. Do **not** copy this literal placeholder command as-is.
 
+## 5A. Optional directory and file discovery (authorized scope only)
+
+After confirming the site and virtual host, use a bounded wordlist scan with `ffuf` or `gobuster` when necessary. The full copy-paste examples (including Archangel's `Host` header) are in **[Directory Enumeration Cheatsheet](../cheatsheets/directory-enumeration.md)**. This step is manual; `web_enum.sh` does not automatically perform directory brute-force.
+
 ## 5. Investigate the newly discovered site
 
 If the hostname routes to a different app:
