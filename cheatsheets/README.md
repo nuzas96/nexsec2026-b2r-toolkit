@@ -7,6 +7,7 @@ Curated quick links for **authorized** Boot2Root (B2R), Linux/Windows security a
 ## Practical command cheatsheets (maintained in this repository)
 
 - **[Directory & File Enumeration — ffuf / Gobuster](directory-enumeration.md)** — copy-paste examples for wordlist-based directory and file discovery, including Host-header checks for name-based virtual hosts, rate limits, result interpretation and troubleshooting.
+- **[Bundled B2R quick wordlist](../wordlists/b2r-quick.txt)** — 120 ready-to-use path entries; no extra SecLists package needed.
 
 ## Start here — Core B2R references (7)
 
