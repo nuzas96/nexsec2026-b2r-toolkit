@@ -1,4 +1,3 @@
-# Original lightweight B2R web-path starter list. One path per line.
 admin
 admin/
 administrator
