@@ -15,6 +15,10 @@ Check each command before using it; the forms below match each script’s `--hel
 
 Replace `192.0.2.10` only with an in-scope address. Never broaden the target list based on a scan result.
 
+### Important: next steps after a web scan
+
+**The scan is only the first step.** Inspect homepage HTML, search for hostnames/email domains, and—if a discovered hostname is authorized—compare the page using an HTTP `Host` header. The copy-paste commands and decision path are in [Manual Web B2R Workflow](docs/WEB_MANUAL_WORKFLOW.md). You can also run `./scripts/web_enum.sh --help` for a brief reminder. The script does not perform these steps automatically.
+
 ## 2. Obtain authorized local access
 
 After connecting through the lab’s provided SSH or console access, run from the toolkit directory on the target:
