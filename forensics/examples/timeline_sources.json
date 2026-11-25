@@ -1,0 +1,24 @@
+{
+  "sources": [
+    {
+      "path": "sample_events.csv",
+      "format": "csv",
+      "name": "example-prefetch-export",
+      "artifact_type": "windows-prefetch-export",
+      "time_field": "RunTimeUTC",
+      "event_field": "Executable",
+      "reference_field": "RecordID",
+      "time_encoding": "iso"
+    },
+    {
+      "path": "sample_network.jsonl",
+      "format": "jsonl",
+      "name": "example-network-export",
+      "artifact_type": "pcap-summary-export",
+      "time_field": "epoch_ms",
+      "event_field": "flow",
+      "reference_field": "packet",
+      "time_encoding": "unix_ms"
+    }
+  ]
+}

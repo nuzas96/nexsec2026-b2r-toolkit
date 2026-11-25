@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexsec-dfir"
+version = "0.1.0"
+description = "Offline evidence-first forensic CTF workbench"
+requires-python = ">=3.10"
+
+[project.scripts]
+nexsec-dfir = "nexsec_dfir.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["nexsec_dfir*"]
+
+[tool.setuptools.package-data]
+nexsec_dfir = ["questions.json"]

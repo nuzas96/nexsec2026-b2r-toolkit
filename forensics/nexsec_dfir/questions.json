@@ -1,0 +1,122 @@
+[
+  {
+    "id": "WIN-EXEC", "topic": "Windows program execution and timestamps",
+    "keywords": ["executed", "last run", "last execution", "prefetch", "program launched", "execution time", "run count", "bam", "userassist"],
+    "candidate_artifacts": ["Windows Prefetch (including MAM compressed)", "Security 4688 / Sysmon Event 1 if enabled", "BAM/DAM", "UserAssist", "Amcache (supporting, not execution proof alone)"],
+    "tools": ["PECmd or suitable Prefetch parser", "EvtxECmd", "RECmd/Registry Explorer"],
+    "verification": "Confirm executable identity, per-artifact time semantics, UTC conversion, and corroborating process logs where available.",
+    "limits": "Amcache or ShimCache presence alone does not prove execution. Prefetch may be disabled or absent."
+  },
+  {
+    "id": "WIN-LOGON", "topic": "Windows logons and account attribution",
+    "keywords": ["logon", "login time", "signed in", "failed login", "account", "username", "session", "event 4624", "4625", "user sid"],
+    "candidate_artifacts": ["Security EVTX 4624, 4625, 4634, 4672", "Sysmon process log", "SAM/SOFTWARE registry hives", "RDP client/server logs"],
+    "tools": ["EvtxECmd", "Get-WinEvent on approved forensic Windows", "RECmd"],
+    "verification": "Match SID, account, logon type, workstation, Logon ID, and timestamps. Distinguish authentication from interactive login.",
+    "limits": "Success/failure status and logging coverage depend on event settings; events may be absent or cleared."
+  },
+  {
+    "id": "WIN-FS", "topic": "NTFS deletion and filesystem timeline",
+    "keywords": ["deleted", "mft", "usnjrnl", "usn journal", "recycle bin", "file created", "file modified", "filename", "rename", "recovered file"],
+    "candidate_artifacts": ["$MFT", "$UsnJrnl:$J", "$LogFile", "$Recycle.Bin", "LNK and Jump Lists"],
+    "tools": ["MFTECmd", "Sleuth Kit fls/icat/istat", "Autopsy", "Plaso"],
+    "verification": "Check MFT record vs path, timestamps, metadata flags, deletion semantics and retrieved bytes/hash.",
+    "limits": "Deleted record does not imply content recoverability. MFT timestamps can be updated independently."
+  },
+  {
+    "id": "USB", "topic": "USB device insertion and user attribution",
+    "keywords": ["usb", "removable", "flash drive", "external disk", "serial number", "device insertion", "mounted drive"],
+    "candidate_artifacts": ["SYSTEM USBSTOR/Enum", "MountedDevices", "setupapi.dev.log", "User-specific MountPoints2", "LNK/Jump Lists"],
+    "tools": ["Registry Explorer/RECmd", "EvtxECmd", "log comparison"],
+    "verification": "Correlate device serial, volume GUID, user artifact and timestamps; do not infer copying from plug-in alone.",
+    "limits": "Insertion, mounting, file copying and execution are distinct events."
+  },
+  {
+    "id": "MEM-PROC", "topic": "Memory process and injection investigation",
+    "keywords": ["memory dump", "ram", "volatility", "process tree", "malfind", "injected process", "suspicious process", "parent pid", "command line"],
+    "candidate_artifacts": ["Physical memory capture", "Volatility process lists/tree", "Process command lines", "Loaded DLLs/handles", "VADs/injection candidates"],
+    "tools": ["Volatility 3: windows.info, windows.pslist, windows.pstree, windows.cmdline, windows.netscan, windows.malfind"],
+    "verification": "Match process identity, parent-child, PID recycling, command lines and network records; manual validation of code pages.",
+    "limits": "Plugin availability and symbol resolution vary; malfind output is a lead, not malware verdict."
+  },
+  {
+    "id": "NET-EXFIL", "topic": "Network transfer and potential exfiltration",
+    "keywords": ["exfil", "uploaded", "downloaded", "transferred", "bytes sent", "http post", "tcp stream", "file transfer", "data leak", "network traffic"],
+    "candidate_artifacts": ["PCAP/PCAPNG", "HTTP requests/responses", "TCP streams", "DNS", "SMB", "Host network logs/SRUM"],
+    "tools": ["TShark", "Wireshark follow stream / Export Objects", "nexsec_dfir pcap-summary"],
+    "verification": "Link request to response and payload bytes, source/destination and period; verify extraction hash if file reconstructed.",
+    "limits": "DNS query or TCP SYN alone cannot prove exfiltration. TLS ciphertext may require lawful, provided keys."
+  },
+  {
+    "id": "NET-DNS", "topic": "DNS activity and domain attribution",
+    "keywords": ["dns", "domain", "hostname", "c2", "beacon", "queried domain", "subdomain"],
+    "candidate_artifacts": ["PCAP/PCAPNG DNS questions and responses", "Resolver logs", "Sysmon Event 22"],
+    "tools": ["TShark -Y dns", "Wireshark", "Windows EVTX parsers"],
+    "verification": "Check QNAME, response, rcode, original requester and time; link to follow-on network flow before calling it C2.",
+    "limits": "Domain resolution does not show successful HTTP session, malware execution or data transfer."
+  },
+  {
+    "id": "DISK", "topic": "Disk image, partitions and filesystem recovery",
+    "keywords": ["disk image", "e01", "ewf", "partition", "filesystem", "image.dd", "raw disk", "carve", "inode", "offset"],
+    "candidate_artifacts": ["EWF/E01 evidence", "Raw dd disk", "Partition table", "Filesystem structures"],
+    "tools": ["ewfinfo/ewfmount", "mmls", "fsstat", "fls", "icat", "tsk_recover", "Autopsy"],
+    "verification": "Compute sector-to-byte offset explicitly; hash exported contents, not original disk image; preserve source read-only.",
+    "limits": "Raw memory and raw disk can look similar by filename; magic alone cannot classify every raw dump."
+  },
+  {
+    "id": "BROWSER", "topic": "Browser history, downloads and SQLite",
+    "keywords": ["browser", "chrome", "firefox", "history", "download history", "cookies", "sqlite", "wal", "webkit"],
+    "candidate_artifacts": ["History SQLite and its -wal/-shm", "Downloads tables", "Places.sqlite", "Browser profile files"],
+    "tools": ["nexsec_dfir sqlite-inspect", "SQLite Browser on working copy", "timestamp converter"],
+    "verification": "Map URL/download records and browser profile, account and timestamp encoding, inspect WAL and deleted records when supported.",
+    "limits": "Encrypted credentials cannot be recovered solely from a SQLite table; do not edit the original database."
+  },
+  {
+    "id": "LINUX", "topic": "Linux account and persistence artifacts",
+    "keywords": ["ssh key", "authorized_keys", "cron", "bash_history", "journal", "auth.log", "linux persistence", "systemd", "linux log"],
+    "candidate_artifacts": ["auth.log/journal", "Shell history", "systemd unit files", "Cron", "authorized_keys", "Filesystem metadata"],
+    "tools": ["journalctl --file on a copy where supported", "grep/awk", "SQLite/log parse", "Plaso"],
+    "verification": "Correlate user, timestamps, command execution and config modifications. Preserve log provenance.",
+    "limits": "Shell history is incomplete and user-controlled; config presence does not prove execution."
+  },
+  {
+    "id": "ENC", "topic": "Encoded, nested or damaged evidence",
+    "keywords": ["zip", "rar", "7z", "archive", "corrupt", "encrypted file", "base64", "xor", "password protected", "embedded file", "magic bytes"],
+    "candidate_artifacts": ["Archive metadata", "File headers", "Embedded object offsets", "Nested evidence", "Compression wrappers"],
+    "tools": ["nexsec_dfir classify/zip-inventory/hunt", "7z test on working copy", "binwalk on working copy", "xxd"],
+    "verification": "Verify signature and decoded data hashes; track bytes and offsets; record recovery operations on copies.",
+    "limits": "Missing headers are not proof of format; archive member listings are not extraction or integrity tests."
+  },
+  {
+    "id": "IMAGE", "topic": "Image and steganography forensic triage",
+    "keywords": ["png", "jpeg", "jpg", "gif", "stego", "lsb", "exif", "image metadata", "pixels", "bitplane"],
+    "candidate_artifacts": ["PNG chunks", "EXIF data", "Image pixel channels", "JPEG trailers", "GIF frames"],
+    "tools": ["exiftool", "zsteg for compatible PNG/BMP", "binwalk", "Pillow optional, on working copy"],
+    "verification": "Confirm extracted bytes/metadata and format; compare false-positive candidates with ground truth.",
+    "limits": "zsteg is not a generic JPEG solver; metadata is not inherently malicious."
+  },
+  {
+    "id": "MALWARE", "topic": "Malicious script/executable static investigation",
+    "keywords": ["malware", "powershell", "script", "obfuscated", "pe", "dll", "elf", "autorun", "payload", "hash"],
+    "candidate_artifacts": ["PE/ELF binaries", "PowerShell/script text", "Encoded strings", "Autorun/service definitions", "Hash and import metadata"],
+    "tools": ["nexsec_dfir classify/hunt", "strings", "PEStudio/pefile where installed", "YARA on approved copy"],
+    "verification": "Separate static candidate IOCs from observed execution; decode using reproducible transformations, verify against host logs.",
+    "limits": "Strings and YARA hits do not prove malicious behavior; do not execute an unknown sample on analysis host."
+  },
+  {
+    "id": "TIMELINE", "topic": "Correlated timeline and timestamp conversion",
+    "keywords": ["timeline", "when", "timestamp", "time zone", "timezone", "filetime", "epoch", "last modified", "sequence", "chronology"],
+    "candidate_artifacts": ["CSV/JSONL artifact exports", "Windows FILETIME", "WebKit microseconds", "Unix epoch", "ISO-8601"],
+    "tools": ["nexsec_dfir timeline-build", "Plaso/log2timeline", "Timeline Explorer"],
+    "verification": "Require explicit time encoding and timezone for naive datetime; retain raw values and source row IDs.",
+    "limits": "Identical timestamps need not mean simultaneous actions. Naive times without timezone must not be silently normalized."
+  },
+  {
+    "id": "OFFICE", "topic": "Office/PDF metadata and embedded objects",
+    "keywords": ["pdf", "docx", "xlsx", "office", "macro", "document properties", "embedded", "author metadata"],
+    "candidate_artifacts": ["PDF objects and attachments", "Office OOXML/ZIP structures", "OLE streams", "Metadata and external links"],
+    "tools": ["pdfinfo/pdfid", "oletools", "exiftool", "zip-inventory for OOXML files"],
+    "verification": "Validate embedded file types and hashes, distinguish metadata from user actions and documents from active scripts.",
+    "limits": "Macro presence alone does not prove execution; some PDF parsers modify extraction output only."
+  }
+]

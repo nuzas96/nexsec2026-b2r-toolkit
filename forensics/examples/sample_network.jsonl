@@ -1,0 +1,2 @@
+{"epoch_ms": "1793056000000", "flow": "sample DNS query", "packet": "42"}
+{"epoch_ms": "bad-timestamp", "flow": "malformed row for negative testing", "packet": "43"}
