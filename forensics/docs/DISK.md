@@ -9,15 +9,17 @@ Accepts a raw image or a format understood by the installed TSK tool. E01 metada
 ```bash
 python3 -m nexsec_dfir disk-analyze disk.E01 --action ewf-info
 python3 -m nexsec_dfir disk-analyze disk.dd --action partitions --sector-size 512
-python3 -m nexsec_dfir disk-analyze disk.dd --action filesystem --offset 2048
-python3 -m nexsec_dfir disk-analyze disk.dd --action files --offset 2048
+python3 -m nexsec_dfir disk-analyze disk.dd --action filesystem --offset 2048 --sector-size 4096
+python3 -m nexsec_dfir disk-analyze disk.dd --action files --offset 2048 --sector-size 4096
 python3 -m nexsec_dfir disk-analyze disk.dd --action extract --offset 2048 \
-  --inode 1234 --extract-to /case/recovered.bin --max-bytes 50000000
+  --inode 1234 --sector-size 4096 --extract-to /case/recovered.bin --max-bytes 50000000
 python3 -m nexsec_dfir vhd-convert evidence.vhd --raw-output /case/evidence.raw \
-  --max-output-bytes 100000000000
+  --max-output-bytes 6000000000
 ```
 
-`--offset` is a sector offset, not a byte offset. `--sector-size` applies to the `mmls` partition inventory where requested. Extraction requires a new `--extract-to` path and defaults to a 50 MB cap; `--timeout` defaults to 300 seconds. For NTFS alternate data streams, `fls` can report separate data-attribute addresses. Pass the exact stream address (including its `-128-attribute-id` suffix when shown) to `--inode` and use `--filesystem ntfs` so `icat` extracts that attribute rather than the default stream.
+`--offset` is a sector offset, not a byte offset. `--sector-size` is passed as TSK `-b` to `mmls`, `fsstat`, `fls`, and `icat`; `--offset` is passed as `-o` to filesystem commands. Select the sector size confirmed for the image and partition table. Extraction requires a new `--extract-to` path and defaults to a 50 MB cap; `--timeout` defaults to 300 seconds. For NTFS alternate data streams, `fls` can report separate data-attribute addresses. Pass the exact stream address (including its `-128-attribute-id` suffix when shown) to `--inode` and use `--filesystem ntfs` so `icat` extracts that attribute rather than the default stream.
+
+VHD conversion has a finite 10,000,000,000-byte default output limit. Set `--max-output-bytes` explicitly for a larger virtual disk; the requested limit is still enforced. Before conversion, the tool requires destination free space of at least the virtual image size plus a 64 MiB reserve. Conversion runs in a temporary directory on the destination filesystem and removes partial output on failure. Keep sufficient additional space for case reports and subsequent analysis.
 
 ## Expected output
 

@@ -49,20 +49,58 @@ def reconstruct_scriptblocks(path: Path, *, id_field: str = "ScriptBlockId",
                              number_field: str = "MessageNumber", total_field: str = "MessageTotal",
                              text_field: str = "ScriptBlockText", event_field: str | None = "EventId",
                              event_id: str = "4104", record_field: str = "EventRecordId",
+                             payload_field: str | None = "Payload",
                              max_records: int = 100_000, write_scripts: Path | None = None) -> dict:
     path, digest = _source(Path(path))
     groups: dict[str, dict] = {}
     for row_number, row in iter_export(path, max_records=max_records):
-        if event_field and row.get(event_field) not in (None, "", event_id):
+        if event_field and row.get(event_field) not in (None, "") and str(row.get(event_field)) != str(event_id):
             continue
-        identifier = str(row.get(id_field, "")).strip()
+        payload = {}
+        if payload_field and row.get(payload_field) not in (None, ""):
+            raw_payload = row[payload_field]
+            if isinstance(raw_payload, str):
+                try:
+                    payload = json.loads(raw_payload)
+                except ValueError as exc:
+                    raise ForensicError(f"Unsupported parser schema at row {row_number}: {payload_field} is invalid JSON") from exc
+            else:
+                payload = raw_payload
+            if not isinstance(payload, dict):
+                raise ForensicError(f"Unsupported parser schema at row {row_number}: {payload_field} must be a JSON object")
+        effective = {**payload, **row}
+        mapped_fields = [id_field, number_field, total_field, text_field]
+        if event_field:
+            mapped_fields.append(event_field)
+        mapped_fields.append(record_field)
+        for field in mapped_fields:
+            outer, inner = row.get(field), payload.get(field)
+            if outer not in (None, "") and inner not in (None, "") and str(outer) != str(inner):
+                raise ForensicError(f"Conflicting top-level/Payload values for field {field} at row {row_number}")
+            if outer in (None, "") and inner not in (None, ""):
+                effective[field] = inner
+        if event_field and effective.get(event_field) in (None, ""):
+            raise ForensicError(f"Unsupported parser schema: event field {event_field!r} is missing at row {row_number}")
+        if event_field and str(effective.get(event_field)) != str(event_id):
+            continue
+        absent = [field for field in (id_field, number_field, total_field, text_field)
+                  if effective.get(field) in (None, "")]
+        if absent:
+            raise ForensicError(
+                "Unsupported parser schema for selected Event 4104 records: missing "
+                + ", ".join(repr(field) for field in absent)
+                + f"; expected mapped columns or fields inside {payload_field!r}"
+            )
+        if effective.get(record_field) in (None, ""):
+            raise ForensicError(f"Unsupported parser schema: record identifier {record_field!r} is missing at row {row_number}")
+        identifier = str(effective.get(id_field, "")).strip()
         if not identifier:
             continue
         try:
-            number, total = int(row[number_field]), int(row[total_field])
+            number, total = int(effective[number_field]), int(effective[total_field])
         except (KeyError, TypeError, ValueError) as exc:
             raise ForensicError(f"Script block {identifier} row {row_number} has invalid part metadata") from exc
-        text = row.get(text_field)
+        text = effective.get(text_field)
         if not isinstance(text, str) or not text:
             raise ForensicError(f"Script block {identifier} row {row_number} has no text")
         if total < 1 or number < 1 or number > total:
@@ -71,10 +109,10 @@ def reconstruct_scriptblocks(path: Path, *, id_field: str = "ScriptBlockId",
         if group["total"] != total:
             group["conflicts"].append({"row": row_number, "reason": "MessageTotal disagrees"})
         ref = {"source_artifact": str(path), "source_sha256": digest, "source_row": row_number,
-               "record_id": str(row.get(record_field, "") or ""),
-               "timestamp_raw": str(row.get("TimeCreated", "") or ""),
-               "frame_number": str(row.get("frame.number", row.get("frame_number", "")) or ""),
-               "tcp_stream": str(row.get("tcp.stream", row.get("tcp_stream", "")) or "")}
+               "record_id": str(effective.get(record_field, "") or ""),
+               "timestamp_raw": str(effective.get("TimeCreated", "") or ""),
+               "frame_number": str(effective.get("frame.number", effective.get("frame_number", "")) or ""),
+               "tcp_stream": str(effective.get("tcp.stream", effective.get("tcp_stream", "")) or "")}
         group["references"].append(ref)
         old = group["parts"].get(number)
         if old is None:

@@ -11,8 +11,11 @@ from pathlib import Path
 from .core import ForensicError
 from .external import evidence_identity, run_bounded, verify_source_unchanged
 
+DEFAULT_MAX_OUTPUT_BYTES = 10_000_000_000
+FREE_SPACE_RESERVE_BYTES = 64 * 1024 * 1024
 
-def convert_vhd(source: Path, output: Path, *, max_output_bytes: int = 2_000_000_000,
+
+def convert_vhd(source: Path, output: Path, *, max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
                 timeout_seconds: int = 1800) -> dict:
     source, output = Path(source), Path(output)
     if not source.is_file() or source.is_symlink():
@@ -52,6 +55,18 @@ def convert_vhd(source: Path, output: Path, *, max_output_bytes: int = 2_000_000
     if virtual_size > max_output_bytes:
         raise ForensicError(f"Virtual image size {virtual_size} exceeds max-output-bytes={max_output_bytes}")
     output.parent.mkdir(parents=True, exist_ok=True)
+    required_free = virtual_size + FREE_SPACE_RESERVE_BYTES
+    try:
+        free_bytes = shutil.disk_usage(output.parent).free
+    except OSError as exc:
+        verify_source_unchanged(source, identity)
+        raise ForensicError(f"Cannot determine free space at output destination: {exc}") from exc
+    if free_bytes < required_free:
+        verify_source_unchanged(source, identity)
+        raise ForensicError(
+            f"Insufficient free space at output destination: need at least {required_free} bytes "
+            f"({virtual_size} image bytes plus {FREE_SPACE_RESERVE_BYTES} reserve), have {free_bytes}"
+        )
     linked = False
     try:
         with tempfile.TemporaryDirectory(prefix="nexsec-vhd-", dir=output.parent) as work:
@@ -81,7 +96,7 @@ def convert_vhd(source: Path, output: Path, *, max_output_bytes: int = 2_000_000
                     "output_size_bytes": size, "output_sha256": sha.hexdigest(),
                     "note": "qemu-img converted a copy to a new raw output. Source image was hash-checked before and after; the output is not mounted or executed."}
     except BaseException:
-        verify_source_unchanged(source, identity)
         if linked:
             output.unlink(missing_ok=True)
+        verify_source_unchanged(source, identity)
         raise

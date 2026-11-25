@@ -20,7 +20,7 @@ The binary output is written only after a complete set passes Base64 validation,
 
 ## Error handling and verification
 
-Conflicting duplicates, absent/missing chunks, out-of-range parts, inconsistent totals, malformed Base64, multiple jobs without `--job`, expected size/hash mismatch, source mutation and output collision fail without creating the reconstructed output. Verify the assembled file's reported hash and compare frame/stream references to the original capture. Identical repeated chunks are reported and counted once.
+Conflicting outer-row and nested-body values for `job`, `part`, `total`, or `data` fail explicitly instead of allowing one representation to overwrite the other. Equivalent integer and Base64 representations are compared by value. Conflicting duplicates, absent/missing chunks, out-of-range parts, inconsistent totals, malformed Base64, multiple jobs without `--job`, expected size/hash mismatch, source mutation and output collision fail without creating the reconstructed output. Verify the assembled file's reported hash and compare frame/stream references to the original capture. Identical repeated chunks are reported and counted once.
 
 ## Known limitations
 

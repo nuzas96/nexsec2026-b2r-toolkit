@@ -50,10 +50,12 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
         args = (["-b", str(sector_size)] if sector_size else []) + [str(path)]
         result = _run("mmls", args, timeout_seconds, path, identity)
     elif action == "filesystem":
-        args = (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
+        args = (["-b", str(sector_size)] if sector_size else [])
+        args += (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
         result = _run("fsstat", args, timeout_seconds, path, identity)
     elif action == "files":
-        args = ["-r", "-p"] + (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
+        args = ["-r", "-p"] + (["-b", str(sector_size)] if sector_size else [])
+        args += (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
         result = _run("fls", args, timeout_seconds, path, identity)
     elif action == "extract":
         if not inode or output is None:
@@ -69,6 +71,8 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
         if not executable:
             raise ForensicError("Required tool unavailable: icat")
         cmd = [executable]
+        if sector_size:
+            cmd.extend(["-b", str(sector_size)])
         if filesystem:
             cmd.extend(["-f", filesystem])
         cmd.extend(["-o", str(offset), str(path), str(inode)])

@@ -21,7 +21,7 @@ from .windows import analyze_windows
 from .windows_exports import inspect_registry_export, reconstruct_scriptblocks
 from .decoding import decode_value as decode_value_bytes, inspect_email_urls
 from .chunks import reassemble_chunks
-from .vhd import convert_vhd
+from .vhd import convert_vhd, DEFAULT_MAX_OUTPUT_BYTES
 from .router import route
 from .sqlite_artifacts import inspect_sqlite
 from .timeline import build_timeline, normalize_time
@@ -169,7 +169,7 @@ def parser_setup():
     p = sub.add_parser("vhd-convert", help="validate and convert a VHD (QEMU vpc) to a new raw image")
     p.add_argument("file", type=Path)
     p.add_argument("--raw-output", type=Path, required=True)
-    p.add_argument("--max-output-bytes", type=int, default=2_000_000_000)
+    p.add_argument("--max-output-bytes", type=int, default=DEFAULT_MAX_OUTPUT_BYTES)
     p.add_argument("--timeout", type=int, default=1800)
     p.add_argument("--output", help="new JSON report path")
     p = sub.add_parser("decode-value", help="offline Base64/XOR/text decoding; never executes decoded code")
@@ -197,6 +197,7 @@ def parser_setup():
     p.add_argument("--event-field", default="EventId")
     p.add_argument("--event-id", default="4104")
     p.add_argument("--record-field", default="EventRecordId")
+    p.add_argument("--payload-field", default="Payload", help="EvtxECmd JSON payload field; use empty string to disable")
     p.add_argument("--max-records", type=int, default=100000)
     p.add_argument("--write-scripts", type=Path, help="write complete reconstructed scripts to a new directory; scripts remain inert")
     p.add_argument("--output")
@@ -338,6 +339,7 @@ def main(argv=None):
             report = reconstruct_scriptblocks(args.file, id_field=args.id_field,
                 number_field=args.number_field, total_field=args.total_field, text_field=args.text_field,
                 event_field=args.event_field, event_id=args.event_id, record_field=args.record_field,
+                payload_field=args.payload_field or None,
                 max_records=args.max_records, write_scripts=args.write_scripts)
         elif args.command == "registry-inspect":
             report = inspect_registry_export(args.file, key_field=args.key_field,

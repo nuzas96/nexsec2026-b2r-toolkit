@@ -33,13 +33,15 @@ The command fails clearly on non-Windows hosts, missing executable, parser nonze
 
 ```bash
 python3 -m nexsec_dfir powershell-reconstruct PowerShell-Operational.csv \
-  --event-field EventId --event-id 4104 --write-scripts /case/inert-scripts
+  --event-field EventId --event-id 4104 --payload-field Payload --write-scripts /case/inert-scripts
 python3 -m nexsec_dfir registry-inspect registry-values.csv \
   --key-field KeyPath --name-field ValueName --data-field ValueData \
   --key-contains 'CurrentVersion\\Run'
 ```
 
-Script block rows are grouped by ID and ordered by `MessageNumber`; missing/conflicting parts remain explicitly incomplete. Output includes source row, event record, timestamp, frame/stream references and export hash when present. Script files are inert and never run. `registry-inspect` preserves the parser row and maps key/name/data fields; specify field names that exist in the selected parser/version.
+Script block rows are grouped by ID and ordered by `MessageNumber`; missing/conflicting parts remain explicitly incomplete. EvtxECmd's standard `EventRecordId`, `TimeCreated`, `EventId` and JSON `Payload` schema is supported when payload JSON contains the mapped script-block fields. Use `--payload-field ''` to disable payload parsing for an already flattened export. Unsupported or malformed selected 4104 rows fail with a schema error. Output preserves the original event record ID, source row/path/hash and timestamp. Script files are inert and never run. `registry-inspect` preserves the parser row and maps key/name/data fields; specify field names that exist in the selected parser/version.
+
+The synthetic regression fixture `tests/fixtures/evtxecmd-4104-synthetic.csv` uses the standard CSV columns and JSON `Payload` described by the [EvtxECmd project](https://github.com/EricZimmerman/evtx). It verifies that chunks are restored to message order while the original `EventRecordId` values and source hash remain attached. It is generated test data, not a Windows event log.
 
 ## Known limitations
 

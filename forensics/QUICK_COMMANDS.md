@@ -63,7 +63,7 @@ python3 -m nexsec_dfir registry-inspect /path/CASE/exports/registry.csv \
 
 # Convert a VHD to a separate raw analysis copy. qemu-img must be installed.
 python3 -m nexsec_dfir vhd-convert /path/EVIDENCE/disk.vhd --raw-output /path/CASE/disk.raw \
-  --max-output-bytes 100000000000
+  --max-output-bytes 6000000000
 
 # Reassemble parsed Base64 JSON chunks; source exports must retain frame/stream references.
 python3 -m nexsec_dfir chunks-reassemble /path/CASE/exports/upload.jsonl \
@@ -72,12 +72,12 @@ python3 -m nexsec_dfir chunks-reassemble /path/CASE/exports/upload.jsonl \
 
 # Sleuth Kit offsets are sectors. Extraction output must be a new path.
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action partitions --sector-size 512
-python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action files --offset 2048
+python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action files --offset 2048 --sector-size 4096
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action extract \
-  --offset 2048 --inode 42 --extract-to /path/CASE/recovered.bin --max-bytes 50000000
+  --offset 2048 --sector-size 4096 --inode 42 --extract-to /path/CASE/recovered.bin --max-bytes 50000000
 # For an NTFS named stream, pass the exact stream metadata address printed by fls, e.g. 42-128-5.
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action extract \
-  --offset 2048 --filesystem ntfs --inode '<stream-metadata-address>' \
+  --offset 2048 --sector-size 4096 --filesystem ntfs --inode '<stream-metadata-address>' \
   --extract-to /path/CASE/stream.bin --max-bytes 50000000
 ```
 

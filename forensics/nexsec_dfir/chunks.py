@@ -12,7 +12,35 @@ from .windows_exports import iter_export
 from .external import sha256_file
 
 
-def _record_payload(row: dict, container_field: str | None) -> dict:
+def _has_value(value) -> bool:
+    return value is not None and not (isinstance(value, str) and not value.strip())
+
+
+def _canonical_value(field: str, value, job_field: str, part_field: str,
+                    total_field: str, data_field: str):
+    if field in (part_field, total_field):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return value
+    if field == data_field and isinstance(value, str):
+        compact = "".join(value.split())
+        try:
+            if len(compact) % 4 == 1:
+                return compact
+            return base64.b64decode(compact + "=" * ((-len(compact)) % 4), altchars=b"-_", validate=True)
+        except (binascii.Error, ValueError):
+            return compact
+    if field == job_field:
+        return str(value).strip()
+    return value
+
+
+def _record_payload(row: dict, container_field: str | None, *,
+                    job_field: str, part_field: str, total_field: str,
+                    data_field: str) -> dict:
+    required = (job_field, part_field, total_field, data_field)
+    payload = None
     if container_field:
         raw = row.get(container_field)
         if isinstance(raw, str):
@@ -20,21 +48,39 @@ def _record_payload(row: dict, container_field: str | None) -> dict:
                 payload = json.loads(raw)
             except ValueError as exc:
                 raise ForensicError(f"JSON payload field {container_field} is invalid JSON") from exc
-            if isinstance(payload, dict):
-                return {**payload, **row}
-        if isinstance(raw, dict):
-            return {**raw, **row}
-        raise ForensicError(f"Field {container_field} does not contain a JSON object")
-    for field in ("json", "payload", "body"):
-        raw = row.get(field)
-        if isinstance(raw, str) and raw.lstrip().startswith("{"):
-            try:
-                payload = json.loads(raw)
-            except ValueError:
+        elif isinstance(raw, dict):
+            payload = raw
+        if not isinstance(payload, dict):
+            raise ForensicError(f"Field {container_field} does not contain a JSON object")
+    else:
+        for field in ("json", "payload", "body"):
+            raw = row.get(field)
+            if isinstance(raw, dict):
+                candidate = raw
+            elif isinstance(raw, str) and raw.lstrip().startswith("{"):
+                try:
+                    candidate = json.loads(raw)
+                except ValueError as exc:
+                    raise ForensicError(f"JSON payload field {field} is invalid JSON") from exc
+            else:
                 continue
-            if isinstance(payload, dict) and {"job", "part", "total", "data"}.issubset(payload):
-                return {**payload, **row}
-    return row
+            if isinstance(candidate, dict) and set(required).intersection(candidate):
+                payload = candidate
+                break
+    if payload is None:
+        return row
+    for field in required:
+        outer, inner = row.get(field), payload.get(field)
+        if _has_value(outer) and _has_value(inner):
+            left = _canonical_value(field, outer, job_field, part_field, total_field, data_field)
+            right = _canonical_value(field, inner, job_field, part_field, total_field, data_field)
+            if left != right:
+                raise ForensicError(f"Conflicting outer/body values for field {field}")
+    merged = {**payload, **row}
+    for field in required:
+        if not _has_value(row.get(field)) and _has_value(payload.get(field)):
+            merged[field] = payload[field]
+    return merged
 
 
 def reassemble_chunks(source: Path, output: Path, *, job: str | None = None,
@@ -63,8 +109,9 @@ def reassemble_chunks(source: Path, output: Path, *, job: str | None = None,
     source_hash = sha256_file(source)
     jobs: dict[str, dict] = {}
     for row_number, source_row in iter_export(source, max_records=max_records):
-        row = _record_payload(source_row, container_field)
-        if job is not None and str(row.get(job_field, "")) != job:
+        row = _record_payload(source_row, container_field, job_field=job_field,
+                              part_field=part_field, total_field=total_field, data_field=data_field)
+        if job is not None and str(row.get(job_field, "")).strip() != job:
             continue
         job_id = str(row.get(job_field, "")).strip()
         if not job_id:
