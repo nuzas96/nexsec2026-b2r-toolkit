@@ -22,6 +22,10 @@ A **standalone, offline-first, question-driven forensic workbench** (Python stan
 | Windows artifacts | `windows-artifact --kind evtx/prefetch/mft` | Windows-host-only adapters for EvtxECmd, PECmd and MFTECmd. Emits parser source row, candidate record/time columns, observed row and source hash. Registry, LNK, Amcache and JLECmd adapters are not yet implemented. |
 | Memory | `memory-analyze --workflow ...` | Runs allowlisted Volatility 3 Windows/Linux process, tree, command-line, network, modules or malfind plugins with offline mode. Symbol/plugin failures and timeouts are explicit. |
 | Disk image | `disk-analyze --action ...` | Uses TSK `mmls`, `fsstat`, `fls`, `icat` and `ewfinfo` when available. Sector offsets are explicit; extraction is size-capped, hashed and written to a new path. No mounting. |
+| Email and encoding | `email-urls`, `decode-value` | Extracts inert message URLs; supports strict Base64, repeating-key XOR and explicit UTF-16LE/UTF-8 decoding. Never executes recovered scripts. |
+| PowerShell/Registry exports | `powershell-reconstruct`, `registry-inspect` | Reassembles 4104 parser rows by part metadata and maps registry parser CSV/JSONL fields with record provenance. No raw hive parser is included. |
+| Upload chunks | `chunks-reassemble` | Orders parsed JSON chunks, handles exact duplicates, rejects conflicts/missing/invalid Base64, checks optional size/SHA-256, retains frame/stream references. |
+| VHD conversion | `vhd-convert` | Uses qemu-img offline for VHD `vpc` to raw conversion, rejects backing-file chains/unsupported formats, checks source hash and enforces an output-size limit. |
 | Timestamp correlation | `timeline-build` | Merges parser-exported CSV/JSONL into UTC, preserves source references, flags duplicates and invalid/ambiguous timestamps. |
 | Question router | `route` | Transparent keyword rules suggest artifacts, tools, cross-checks and limits. **Does not answer questions**. |
 | Findings ledger | `finding-add/list` | Every finding must cite a SHA-256 indexed artifact, source record and observed value; confidence analyst-supplied. |

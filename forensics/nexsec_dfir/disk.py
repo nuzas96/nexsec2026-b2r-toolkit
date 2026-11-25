@@ -33,6 +33,7 @@ def _run(tool: str, args: list[str], timeout: int, source: Path, identity: dict)
 
 def analyze_disk(path: Path, action: str, *, offset: int = 0,
                  sector_size: int | None = None, inode: str | None = None,
+                 filesystem: str | None = None,
                  output: Path | None = None, max_bytes: int = 50_000_000,
                  timeout_seconds: int = 300) -> dict:
     path = Path(path)
@@ -49,9 +50,11 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
         args = (["-b", str(sector_size)] if sector_size else []) + [str(path)]
         result = _run("mmls", args, timeout_seconds, path, identity)
     elif action == "filesystem":
-        result = _run("fsstat", ["-o", str(offset), str(path)], timeout_seconds, path, identity)
+        args = (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
+        result = _run("fsstat", args, timeout_seconds, path, identity)
     elif action == "files":
-        result = _run("fls", ["-r", "-p", "-o", str(offset), str(path)], timeout_seconds, path, identity)
+        args = ["-r", "-p"] + (["-f", filesystem] if filesystem else []) + ["-o", str(offset), str(path)]
+        result = _run("fls", args, timeout_seconds, path, identity)
     elif action == "extract":
         if not inode or output is None:
             raise ForensicError("extract requires --inode and --output")
@@ -65,8 +68,11 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
         executable = shutil.which("icat")
         if not executable:
             raise ForensicError("Required tool unavailable: icat")
-        cmd = [executable, "-o", str(offset), str(path), str(inode)]
-        digest, count = hashlib.sha256(), 0
+        cmd = [executable]
+        if filesystem:
+            cmd.extend(["-f", filesystem])
+        cmd.extend(["-o", str(offset), str(path), str(inode)])
+        digest, digest_sha1, count = hashlib.sha256(), hashlib.sha1(), 0
         output.parent.mkdir(parents=True, exist_ok=True)
         try:
             with output.open("xb") as fp:
@@ -85,6 +91,7 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
                             return
                         fp.write(chunk)
                         digest.update(chunk)
+                        digest_sha1.update(chunk)
                         count += len(chunk)
                 reader = threading.Thread(target=copy_limited, daemon=True)
                 reader.start()
@@ -108,7 +115,7 @@ def analyze_disk(path: Path, action: str, *, offset: int = 0,
             output.unlink(missing_ok=True)
             raise
         result = {"tool": "icat", "output_path": str(output.resolve()), "size_bytes": count,
-                  "sha256": digest.hexdigest()}
+                  "sha1": digest_sha1.hexdigest(), "sha256": digest.hexdigest()}
     else:
         raise ForensicError("action must be partitions, filesystem, files, ewf-info, or extract")
     verify_source_unchanged(path, identity)

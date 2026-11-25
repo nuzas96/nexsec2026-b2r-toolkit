@@ -5,6 +5,8 @@ import json
 import subprocess
 import socket
 import struct
+import base64
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +20,11 @@ from nexsec_dfir.windows import analyze_windows
 from nexsec_dfir.timeline import normalize_time, build_timeline
 from nexsec_dfir.router import route
 from nexsec_dfir.external import run_bounded
+from nexsec_dfir.decoding import decode_value, inspect_email_urls
+from nexsec_dfir.windows_exports import reconstruct_scriptblocks, inspect_registry_export
+from nexsec_dfir.chunks import reassemble_chunks
+from nexsec_dfir.vhd import convert_vhd
+from nexsec_dfir.core import classify_file
 
 
 class AdvancedAdapterTests(unittest.TestCase):
@@ -63,6 +70,12 @@ class AdvancedAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ForensicError, "timed out"):
             run_bounded([__import__("sys").executable, "-c", "import time; time.sleep(5)"],
                         timeout=0.1, max_output=1024)
+        watched = self.root / "watch"
+        watched.mkdir()
+        result, truncated = run_bounded([__import__("sys").executable, "-c",
+            "from pathlib import Path; import time; Path('" + str(watched / "dump.bin") + "').write_bytes(b'x'*1000000); time.sleep(5)"],
+            timeout=10, max_output=1024, watch_directory=watched, max_directory_bytes=1024)
+        self.assertTrue(truncated)
 
     def test_missing_volatility_is_explicit(self):
         with patch("nexsec_dfir.memory.shutil.which", return_value=None), \
@@ -96,6 +109,14 @@ class AdvancedAdapterTests(unittest.TestCase):
         self.assertEqual(result["sector_size_bytes"], 4096)
         self.assertEqual(self.source.read_bytes(), b"synthetic immutable evidence")
 
+    def test_tsk_filesystem_type_is_applied_to_stream_inventory(self):
+        with patch("nexsec_dfir.disk._run", return_value={"tool": "fls", "output": "named stream"}) as run:
+            analyze_disk(self.source, "files", offset=2048, filesystem="ntfs")
+        self.assertEqual(run.call_args.args[0], "fls")
+        args = run.call_args.args[1]
+        self.assertEqual(args[:4], ["-r", "-p", "-f", "ntfs"])
+        self.assertIn("2048", args)
+
     @unittest.skipUnless(__import__("shutil").which("mmls"), "SKIPPED: mmls unavailable")
     def test_real_mmls_rejects_non_disk_synthetic_input(self):
         with self.assertRaisesRegex(ForensicError, "mmls exited"):
@@ -114,12 +135,30 @@ class AdvancedAdapterTests(unittest.TestCase):
             result = analyze_disk(self.source, "extract", inode="42", output=out, max_bytes=100)
         self.assertEqual(out.read_bytes(), b"recovered")
         self.assertEqual(result["sha256"], __import__("hashlib").sha256(b"recovered").hexdigest())
+        self.assertEqual(result["sha1"], hashlib.sha1(b"recovered").hexdigest())
         too_small = self.root / "reports" / "limited.bin"
         with patch("nexsec_dfir.disk.shutil.which", return_value="icat"), \
              patch("nexsec_dfir.disk.subprocess.Popen", FakeProc), \
              self.assertRaisesRegex(ForensicError, "exceeded"):
             analyze_disk(self.source, "extract", inode="42", output=too_small, max_bytes=2)
         self.assertFalse(too_small.exists())
+
+    def test_ntfs_stream_extraction_uses_exact_metadata_address(self):
+        captured = {}
+        class FakeProc:
+            def __init__(self, args, **_kwargs):
+                captured["args"] = args
+                self.stdout = io.BytesIO(b"named stream")
+            def wait(self, timeout=None): return 0
+            def kill(self): pass
+        out = self.root / "case" / "stream.bin"
+        with patch("nexsec_dfir.disk.shutil.which", return_value="icat"), \
+             patch("nexsec_dfir.disk.subprocess.Popen", FakeProc):
+            result = analyze_disk(self.source, "extract", offset=2048, inode="42-128-5",
+                                  filesystem="ntfs", output=out, max_bytes=100)
+        self.assertEqual(captured["args"][-4:], ["-o", "2048", str(self.source), "42-128-5"])
+        self.assertIn("ntfs", captured["args"])
+        self.assertEqual(result["size_bytes"], len(b"named stream"))
 
     def test_windows_tool_is_platform_gated_and_parses_export(self):
         with patch("nexsec_dfir.windows.is_windows_host", return_value=False), \
@@ -166,6 +205,137 @@ class AdvancedAdapterTests(unittest.TestCase):
         self.assertEqual(row["source_sha256"], sha256_file(events))
         self.assertEqual(row["source_reference"], "9")
         self.assertEqual(result["events"], 1)
+
+    def test_base64_xor_and_utf16le_decode(self):
+        text = "Write-Output 'offline'"
+        plain = text.encode("utf-16le")
+        key = b"key"
+        encoded = bytes(value ^ key[index % len(key)] for index, value in enumerate(plain))
+        value = base64.b64encode(encoded).decode()
+        report, decoded = decode_value(value, from_base64=True, xor_key=key, text_encoding="utf-16le")
+        self.assertEqual(decoded, plain)
+        self.assertEqual(report["decoded_text"], text)
+        with self.assertRaisesRegex(ForensicError, "Invalid Base64"):
+            decode_value("%%%", from_base64=True)
+
+    def test_email_url_query_decoding_is_offline(self):
+        mail = self.root / "message.eml"
+        token = base64.urlsafe_b64encode(b"https://example.invalid/path").decode().rstrip("=")
+        mail.write_text(f"From: sender@example.invalid\nSubject: sample\nContent-Type: text/plain; charset=utf-8\n\nVisit https://example.invalid/?blob={token}\n")
+        result = inspect_email_urls(mail, decode_param="blob")
+        self.assertFalse(result["network_accessed"])
+        self.assertEqual(result["urls"][0]["decoded_parameter_text"], "https://example.invalid/path")
+
+    def test_email_integrity_detects_change_during_parse(self):
+        mail = self.root / "message.eml"
+        mail.write_text("Content-Type: text/plain\n\nhttps://example.invalid/\n")
+        from nexsec_dfir import decoding
+        original = decoding.evidence_identity
+        def mutate(path):
+            identity = original(path)
+            path.write_text("changed")
+            return identity
+        with patch("nexsec_dfir.decoding.evidence_identity", side_effect=mutate), \
+             self.assertRaisesRegex(ForensicError, "SHA-256 changed"):
+            inspect_email_urls(mail)
+
+    def test_scriptblock_reconstruction_and_registry_export_mapping(self):
+        export = self.root / "events.csv"
+        export.write_text("EventId,ScriptBlockId,MessageNumber,MessageTotal,ScriptBlockText,EventRecordId\n"
+                          "4104,sb-1,2,2,second,8\n4104,sb-1,1,2,first,7\n")
+        result = reconstruct_scriptblocks(export)
+        block = result["script_blocks"][0]
+        self.assertEqual(block["script_text"], "firstsecond")
+        self.assertEqual([row["record_id"] for row in block["source_references"]], ["8", "7"])
+        reg = self.root / "registry.csv"
+        reg.write_text("KeyPath,ValueName,ValueData\nHKCU\\Software\\Run,Updater,powershell.exe -enc ABC\n")
+        mapped = inspect_registry_export(reg, key_contains="software\\run", value_name="Updater")
+        self.assertEqual(mapped["records"][0]["value_data"], "powershell.exe -enc ABC")
+
+    def test_chunk_order_duplicate_hash_and_rejections(self):
+        payload = b"hello world"
+        rows = [
+            {"job": "job-1", "part": 1, "total": 2, "data": base64.b64encode(b"world").decode(), "frame.number": "9", "tcp.stream": "2"},
+            {"job": "job-1", "part": 0, "total": 2, "data": base64.b64encode(b"hello ").decode(), "frame.number": "4", "tcp.stream": "2"},
+            {"job": "job-1", "part": 1, "total": 2, "data": base64.b64encode(b"world").decode(), "frame.number": "10", "tcp.stream": "2"},
+        ]
+        src = self.root / "evidence" / "chunks.jsonl"
+        src.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        out = self.root / "case" / "assembled.bin"
+        result = reassemble_chunks(src, out, expected_size=len(payload), expected_sha256=hashlib.sha256(payload).hexdigest())
+        self.assertEqual(out.read_bytes(), payload)
+        self.assertEqual(len(result["duplicate_parts"]), 1)
+        self.assertEqual(result["part_references"][1][0]["frame_number"], "9")
+        conflict = self.root / "evidence" / "conflict.jsonl"
+        conflict.write_text("\n".join(json.dumps(row) for row in [rows[0], {**rows[0], "data": base64.b64encode(b"other").decode()}]) + "\n")
+        with self.assertRaisesRegex(ForensicError, "Conflicting duplicate"):
+            reassemble_chunks(conflict, self.root / "case" / "conflict.bin", job="job-1")
+        missing = self.root / "evidence" / "missing.jsonl"
+        missing.write_text(json.dumps(rows[0]) + "\n")
+        with self.assertRaisesRegex(ForensicError, "Missing chunks"):
+            reassemble_chunks(missing, self.root / "case" / "missing.bin", job="job-1")
+        with self.assertRaisesRegex(ForensicError, "does not match"):
+            reassemble_chunks(src, self.root / "case" / "bad-hash.bin", expected_sha256="0" * 64)
+        self.assertFalse((self.root / "case" / "bad-hash.bin").exists())
+
+    def test_vhd_detection_and_qemu_unsupported_format(self):
+        vhd = self.source.parent / "candidate.vhd"
+        vhd.write_bytes(bytes(512) + b"conectix" + bytes(504))
+        self.assertEqual(classify_file(vhd)["type"], "vhd")
+        cp = subprocess.CompletedProcess([], 0, stdout=b'{"format":"raw","virtual-size":512}', stderr=b"")
+        with patch("nexsec_dfir.vhd.shutil.which", return_value="qemu-img"), \
+             patch("nexsec_dfir.vhd.run_bounded", return_value=(cp, False)), \
+             self.assertRaisesRegex(ForensicError, "only VHD"):
+            convert_vhd(vhd, self.root / "case" / "disk.raw")
+        self.assertTrue(vhd.exists())
+
+    def test_vhd_qemu_conversion_creates_hashed_separate_copy(self):
+        vhd = self.root / "evidence" / "image.vhd"
+        vhd.write_bytes(bytes(512) + b"conectix" + bytes(504))
+        info = subprocess.CompletedProcess([], 0, stdout=b'{"format":"vpc","virtual-size":4}', stderr=b"")
+        converted = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+        def fake_run(args, **_kwargs):
+            if args[1] == "info":
+                return info, False
+            Path(args[-1]).write_bytes(b"raw!")
+            return converted, False
+        output = self.root / "case" / "image.raw"
+        with patch("nexsec_dfir.vhd.shutil.which", return_value="qemu-img"), \
+             patch("nexsec_dfir.vhd.run_bounded", side_effect=fake_run):
+            report = convert_vhd(vhd, output, max_output_bytes=100)
+        self.assertEqual(output.read_bytes(), b"raw!")
+        self.assertEqual(report["output_sha256"], hashlib.sha256(b"raw!").hexdigest())
+        self.assertEqual(vhd.stat().st_size, 1024)
+
+    @unittest.skipUnless(__import__("shutil").which("qemu-img"), "SKIPPED: qemu-img unavailable")
+    def test_real_qemu_converts_synthetic_vhd(self):
+        vhd = self.root / "evidence" / "real-tool.vhd"
+        subprocess.run([__import__("shutil").which("qemu-img"), "create", "-f", "vpc", str(vhd), "1M"],
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = self.root / "case" / "real-tool.raw"
+        report = convert_vhd(vhd, output, max_output_bytes=2_000_000, timeout_seconds=30)
+        self.assertEqual(report["input_format"], "vpc")
+        self.assertGreater(output.stat().st_size, 0)
+        self.assertEqual(report["output_sha256"], sha256_file(output))
+        self.assertTrue(vhd.is_file())
+
+    def test_volatility_dumpfiles_hashes_without_execution(self):
+        version = subprocess.CompletedProcess([], 0, stdout=b"Volatility 3", stderr=b"")
+        plugin = subprocess.CompletedProcess([], 0, stdout=b"[]", stderr=b"")
+        def fake_run(args, **_kwargs):
+            if args[-1] == "--version":
+                return version, False
+            tempdir = Path(args[args.index("-o") + 1])
+            (tempdir / "tool-output.data").write_bytes(b"synthetic recovered bytes")
+            return plugin, False
+        dump_dir = self.root / "case" / "memory-dumps"
+        with patch("nexsec_dfir.memory.shutil.which", return_value="vol"), \
+             patch("nexsec_dfir.memory.run_bounded", side_effect=fake_run):
+            report = analyze_memory(self.source, "windows-dumpfiles", dump_dir=dump_dir, max_dump_bytes=1024)
+        dumped = report["dumped_files"][0]
+        self.assertEqual(dumped["sha1"], hashlib.sha1(b"synthetic recovered bytes").hexdigest())
+        self.assertEqual(Path(dumped["output_path"]).read_bytes(), b"synthetic recovered bytes")
+        self.assertTrue(dump_dir.stat().st_mode & 0o700)
 
     @unittest.skipUnless(__import__("shutil").which("tshark"), "SKIPPED: tshark unavailable")
     def test_real_tshark_synthetic_dns_capture(self):

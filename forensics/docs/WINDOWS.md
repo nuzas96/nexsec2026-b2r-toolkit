@@ -2,7 +2,7 @@
 
 ## Supported input and prerequisites
 
-The adapter accepts one EVTX file, one Prefetch file, or an extracted `$MFT` file. It runs on Windows only and calls locally installed Eric Zimmerman tools: `EvtxECmd.exe`, `PECmd.exe`, or `MFTECmd.exe`. No tool is downloaded. Registry, Amcache, LNK/Jump List and JLECmd workflows remain manual.
+The adapter accepts one EVTX file, one Prefetch file, or an extracted `$MFT` file. It runs on Windows only and calls locally installed Eric Zimmerman tools: `EvtxECmd.exe`, `PECmd.exe`, or `MFTECmd.exe`. No tool is downloaded. Registry hive binary parsing, Amcache, LNK/Jump List and JLECmd workflows remain manual. `registry-inspect` maps already parsed registry CSV/JSONL; it is not a hive parser.
 
 ## Usage
 
@@ -28,6 +28,18 @@ JSON includes source path and SHA-256, parser name, parser export file, source C
 ## Errors and verification
 
 The command fails clearly on non-Windows hosts, missing executable, parser nonzero exit, timeout or missing parser CSV. Verify source SHA-256 before/after, check the parser version/help and compare an event/record ID against the original artifact using a trusted parser. The adapter's candidate field mapping is heuristic; parser CSV headers vary.
+
+## Script blocks and registry exports
+
+```bash
+python3 -m nexsec_dfir powershell-reconstruct PowerShell-Operational.csv \
+  --event-field EventId --event-id 4104 --write-scripts /case/inert-scripts
+python3 -m nexsec_dfir registry-inspect registry-values.csv \
+  --key-field KeyPath --name-field ValueName --data-field ValueData \
+  --key-contains 'CurrentVersion\\Run'
+```
+
+Script block rows are grouped by ID and ordered by `MessageNumber`; missing/conflicting parts remain explicitly incomplete. Output includes source row, event record, timestamp, frame/stream references and export hash when present. Script files are inert and never run. `registry-inspect` preserves the parser row and maps key/name/data fields; specify field names that exist in the selected parser/version.
 
 ## Known limitations
 

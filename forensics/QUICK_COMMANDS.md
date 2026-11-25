@@ -47,12 +47,38 @@ python3 -m nexsec_dfir windows-artifact '/path/EVIDENCE/$MFT' --kind mft
 # Volatility 3 runs explicitly offline; required symbols must already be available.
 python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-processes
 python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-network
+python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-dumpfiles \
+  --dump-dir /path/CASE/memory-dumps --max-dump-bytes 100000000
+python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-registry-key \
+  --registry-key 'Software\Microsoft\Windows\CurrentVersion\Run'
+
+# Decode evidence as inert bytes/text; no scripts are executed.
+python3 -m nexsec_dfir decode-value --value '<observed-base64>' --base64 --text-encoding utf-16le
+python3 -m nexsec_dfir decode-value --input-file /path/CASE/decoded.txt --base64 \
+  --xor-key '<analyst-confirmed-key>' --text-encoding utf-16le
+python3 -m nexsec_dfir email-urls /path/EVIDENCE/message.eml --decode-param '<parameter-name>'
+python3 -m nexsec_dfir powershell-reconstruct /path/CASE/exports/events.csv --event-id 4104
+python3 -m nexsec_dfir registry-inspect /path/CASE/exports/registry.csv \
+  --key-contains 'CurrentVersion\Run' --value-name '<value-name>'
+
+# Convert a VHD to a separate raw analysis copy. qemu-img must be installed.
+python3 -m nexsec_dfir vhd-convert /path/EVIDENCE/disk.vhd --raw-output /path/CASE/disk.raw \
+  --max-output-bytes 100000000000
+
+# Reassemble parsed Base64 JSON chunks; source exports must retain frame/stream references.
+python3 -m nexsec_dfir chunks-reassemble /path/CASE/exports/upload.jsonl \
+  --reassembled-output /path/CASE/upload.bin --job '<observed-job-id>' \
+  --expected-size <known-size> --expected-sha256 <known-sha256>
 
 # Sleuth Kit offsets are sectors. Extraction output must be a new path.
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action partitions --sector-size 512
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action files --offset 2048
 python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action extract \
   --offset 2048 --inode 42 --extract-to /path/CASE/recovered.bin --max-bytes 50000000
+# For an NTFS named stream, pass the exact stream metadata address printed by fls, e.g. 42-128-5.
+python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action extract \
+  --offset 2048 --filesystem ntfs --inode '<stream-metadata-address>' \
+  --extract-to /path/CASE/stream.bin --max-bytes 50000000
 ```
 
 Object and disk extraction write to new separate paths. Hash and inspect recovered data; never execute it. See [advanced troubleshooting](docs/TROUBLESHOOTING.md).

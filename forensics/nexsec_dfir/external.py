@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
+import os
 from pathlib import Path
 
 from .core import ForensicError, sha256_file
@@ -25,7 +26,8 @@ def verify_source_unchanged(path: Path, identity: dict) -> None:
         raise ForensicError("Evidence SHA-256 changed while analysis ran; stop and re-acquire/verify the source")
 
 
-def run_bounded(args: list[str], *, timeout: int, max_output: int):
+def run_bounded(args: list[str], *, timeout: int, max_output: int,
+                watch_directory: Path | None = None, max_directory_bytes: int | None = None):
     """Capture bounded stdout/stderr; terminate the tool if either cap is exceeded."""
     if timeout <= 0 or max_output < 1:
         raise ForensicError("timeout and max_output must be positive")
@@ -51,11 +53,40 @@ def run_bounded(args: list[str], *, timeout: int, max_output: int):
                for name in ("stdout", "stderr")]
     for reader in readers:
         reader.start()
+    stop_watcher = threading.Event()
+    watcher = None
+    if watch_directory is not None and max_directory_bytes is not None:
+        def monitor_directory():
+            while not stop_watcher.wait(0.1):
+                total = 0
+                for directory, dirs, files in os.walk(watch_directory, followlinks=False):
+                    dirs[:] = [name for name in dirs if not (Path(directory) / name).is_symlink()]
+                    for name in files:
+                        item = Path(directory) / name
+                        if item.is_symlink():
+                            truncated.set()
+                            if proc.poll() is None:
+                                proc.kill()
+                            return
+                        try:
+                            total += item.stat().st_size
+                        except OSError:
+                            continue
+                        if total > max_directory_bytes:
+                            truncated.set()
+                            if proc.poll() is None:
+                                proc.kill()
+                            return
+        watcher = threading.Thread(target=monitor_directory, daemon=True)
+        watcher.start()
     try:
         returncode = proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         proc.kill()
         proc.wait()
+        stop_watcher.set()
+        if watcher:
+            watcher.join(timeout=5)
         for reader in readers:
             reader.join(timeout=5)
         if proc.stdout:
@@ -63,6 +94,9 @@ def run_bounded(args: list[str], *, timeout: int, max_output: int):
         if proc.stderr:
             proc.stderr.close()
         raise ForensicError(f"Subprocess timed out after {timeout}s") from exc
+    stop_watcher.set()
+    if watcher:
+        watcher.join(timeout=5)
     for reader in readers:
         reader.join(timeout=5)
     if any(reader.is_alive() for reader in readers):

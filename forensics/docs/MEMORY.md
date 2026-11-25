@@ -2,7 +2,7 @@
 
 ## Supported input and prerequisites
 
-Accepts a local memory image readable by the installed Volatility 3 version. The adapter calls `vol` or `volatility3` with `--offline`; remote symbol retrieval is disabled. Symbols must already be available locally. Supported workflows: Windows processes/tree/command-line/network/modules/malfind and Linux processes/tree/command-line (`psaux`)/network/modules/module consistency check.
+Accepts a local memory image readable by the installed Volatility 3 version. The adapter calls `vol` or `volatility3` with `--offline`; remote symbol retrieval is disabled. Symbols must already be available locally. Supported workflows: Windows process list/scan/tree/command-line/network/modules/malfind, file scan/dump, registry hives/key values; Linux processes/tree/command-line (`psaux`)/network/modules/module consistency check.
 
 ## Usage
 
@@ -11,13 +11,20 @@ python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-processes
 python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-tree --timeout 600
 python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-network --output reports/netscan.json
 python3 -m nexsec_dfir memory-analyze linux.mem --workflow linux-processes
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-file-scan
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-dumpfiles \
+  --dump-dir /case/memory-files --pid 1234 --dump-filter 'credential|archive' \
+  --max-dump-bytes 100000000
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-registry-hives
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-registry-key \
+  --registry-key 'Software\\Microsoft\\Windows\\CurrentVersion\\Run'
 ```
 
-All plugins have a configurable `--timeout` (default 300 seconds) and `--max-output-bytes` (default 4,000,000, separately capped for stdout/stderr). Reaching the output cap terminates the plugin and marks output truncated. `--output` refuses to overwrite an existing report.
+All plugins have a configurable `--timeout` (default 300 seconds) and `--max-output-bytes` (default 4,000,000, separately capped for stdout/stderr). Reaching the output cap terminates the plugin and marks output truncated. Dump-files also watches its temporary output directory and stops at `--max-dump-bytes` (default 100 MB); only completed, in-limit files are copied to the new dump directory. Each copied file has SHA-1/SHA-256. `--output` refuses to overwrite an existing report.
 
 ## Expected output
 
-JSON contains the source artifact and SHA-256, selected Volatility plugin, JSON records when emitted, otherwise bounded raw tool output, stderr and truncation state. Preserve PID/PPID, timestamps, command line, endpoints, module names and plugin details from the original row. Plugin output fields vary by Volatility version.
+JSON contains the source artifact and SHA-256, selected Volatility plugin/version, JSON records when emitted, otherwise bounded raw tool output, stderr and truncation state. Dump-files reports inert recovered file paths, original tool filenames, sizes and hashes. Registry plugin reports preserve raw key/value rows. Preserve PID/PPID, timestamps, command line, endpoints, module names and plugin details from the original row. Plugin output fields vary by Volatility version.
 
 ## Errors and verification
 
