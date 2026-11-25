@@ -204,12 +204,12 @@ class WorkbenchTests(unittest.TestCase):
         sample = '1\t1793056000\t10.0.0.1\t10.0.0.2\teth:ip:udp:dns\t\texample.test\t\t\n' \
                  '2\t1793056001\t10.0.0.1\t10.0.0.3\teth:ip:tcp:http\t7\t\texample.test\t/\n'
         with patch('nexsec_dfir.pcap.shutil.which', return_value='/usr/bin/tshark'), \
-             patch('nexsec_dfir.pcap.subprocess.run', return_value=CompletedProcess([],0,stdout=sample,stderr='')) as mock_run:
+             patch('nexsec_dfir.pcap.run_bounded', return_value=(CompletedProcess([],0,stdout=sample.encode(),stderr=b''),False)) as mock_run:
             result = pcap_summary(capture)
         self.assertEqual(result['frames_processed'],2)
         self.assertEqual(result['dns_query_names'],[('example.test',1)])
         self.assertEqual(result['tcp_stream_counts'],[('7',1)])
-        self.assertIn('-r',mock_run.call_args[0][0])
+        self.assertIn('-r',mock_run.call_args.args[0])
 
     def test_cli_timeline_write_once_without_json_overwrite(self):
         csvp = self.evidence / 'events.csv'

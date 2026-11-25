@@ -1,42 +1,37 @@
-# Validation Status, Limits, and Roadmap
+# Validation Status
 
-## Confirmed by synthetic tests
+Run from `forensics/`:
 
-Run: `python3 -m unittest discover -s tests -v`.
+```bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q nexsec_dfir tests
+python3 -m nexsec_dfir doctor
+python3 -m nexsec_dfir --help
+```
 
-Synthetic test classes verify: signature classification, intentional unknown result, original SHA-256 preservation, changed-file detection, case destination protections, no symlink traversal, ZIP traversal/duplicate flags, SQLite read from a copy, bounded ASCII/UTF-16LE hunt, Windows FILETIME + WebKit + local timezone normalization, rejection of naive timestamps, timeline duplicate/malformed row logging, rule-based routing and answer format checks, and exported CSV filtering/grouping with source row indices.
+Status words mean: **PASS** = the specific test ran and met its expected result; **PARTIAL** = only a bounded part was exercised; **SKIPPED** = prerequisites/fixtures were absent; **NOT TESTED** = no evidence was run for the feature.
 
-**What PASS means:** these specific algorithmic properties worked on controlled files. It does **not** mean the workbench independently interprets compressed Prefetch internals, EVTX, Windows Registry, MFT, E01, RAM or network application payloads.
+## Current results (2026-11-25)
 
-## Explicitly unverified or delegated
-
-| Area | Status | Reason |
+| Area | Status | Evidence |
 | --- | --- | --- |
-| Real Windows compressed Prefetch parsing | External-tool only | Needs PECmd and known ground-truth fixture |
-| Windows EVTX / Sysmon mapping | External-tool only | Needs event parser and known record mappings |
-| NTFS MFT/USN and E01 | External-tool only | Needs The Sleuth Kit / libewf and disk fixtures |
-| Memory plugins | External-tool only | Needs Volatility 3, symbols and genuine memory fixtures |
-| PCAP summary CLI | TShark-dependent | Adapter requires compatible installed TShark + real capture fixture |
-| SQLite live WAL correctness | Partial | Non-atomic source copying may miss concurrent writes |
-| Timeline timezone/DST | Partial | Ambiguous local clock times require analyst verification |
-| Malware identification | Not implemented | String hits/header detection are not malware verdicts |
-| Full automated flag solving | Not implemented | The question router only recommends investigation paths |
+| v0.1 regression behavior | PASS | Existing synthetic unittest cases retained and passing. |
+| Windows adapter row mapping/error gates | PASS (mock) | Synthetic Zimmerman CSV output, platform gate and parser invocation are tested. |
+| Real Windows EVTX/Prefetch/MFT parsing | SKIPPED | Windows host and Zimmerman tools unavailable in this environment. |
+| Volatility 3 adapter and offline flag | PASS (mock) | Version capture, JSON output, missing symbols and timeouts tested. |
+| Real memory-image plugin analysis | SKIPPED | No non-sensitive known-answer memory fixture supplied. Installed Volatility exists, but a real dump was not exercised. |
+| TShark network adapters | PASS | Mocked parser paths plus installed TShark decoding a generated synthetic DNS PCAP (`a.test`). |
+| TSK/libewf adapter | PARTIAL | Mocked partition/extraction checks pass; real `mmls` rejects a synthetic non-disk input cleanly. No real disk image fixture was available; `ewfinfo` absent. |
+| Timeline timezone/hash/JSONL | PASS | Synthetic offsets, DST ambiguity, source hash, reference and JSONL record checked. |
+| Secure output handling | PASS (covered cases) | Existing no-overwrite/ZIP traversal tests and bounded `icat` output removal/hash tests pass. |
+| Full real-world forensic interpretation | NOT TESTED | No public licensed known-answer Windows, RAM or disk datasets were included. |
 
-## Quality gates for later phases
+The test suite reports 30 tests on the current host (including real TShark and TSK rejection tests plus subprocess timeout/output-limit checks; timezone checks cover ambiguous and nonexistent local times). Mock tests establish adapter behavior, not correctness of third-party parsers. No public evidence fixture was downloaded or committed.
 
-- Produce small legally reusable known-answer Windows/PCAP/disk/memory fixtures.
-- Test each external parser invocation on fixture datasets and compare expected output row-by-row.
-- Add explicit error-classification and log source citations for parser failures.
-- Introduce a file-backed configuration mapping export schemas by parser version rather than guessing CSV headers.
-- Verify extraction/source hashes on any recovered file and ensure no write to original is possible under target OS permissions.
-- Add integration tests for genuine TShark output and realistic large-file performance.
+## Remaining limitations
 
-## Sources for additional tools
-
-- Zimmerman Tools: https://ericzimmerman.github.io/
-- Sleuth Kit: https://www.sleuthkit.org/
-- Volatility 3: https://github.com/volatilityfoundation/volatility3
-- Wireshark/TShark: https://www.wireshark.org/docs/
-- Plaso: https://plaso.readthedocs.io/
-
-This document is a validation inventory, not a certificate of forensic soundness.
+- Registry, Amcache, LNK/Jump List and RECmd integration remain manual specialist-tool workflows.
+- Windows adapters rely on version-specific parser CSV fields; auto-mapped record/time columns are candidate fields and are not semantically validated.
+- TSK offsets and EWF support require analyst confirmation of the actual image sector size and tool build.
+- Memory workflows require local symbols and suitable Volatility plugin support; no remote downloads occur.
+- Large TShark/Volatility outputs are restricted by packet/timeout and JSON report limits, but parser-specific behavior can still vary.

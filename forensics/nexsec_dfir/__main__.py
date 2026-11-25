@@ -12,8 +12,12 @@ from .archive import inventory_zip
 from .csv_artifacts import inspect_csv
 from .core import ForensicError, classify_file, create_case, sha256_file, verify_case, write_json
 from .hunt import DEFAULT_PATTERN, hunt_strings
-from .ledger import list_findings, record_finding
+from .ledger import list_findings, record_finding, investigative_summary
 from .pcap import pcap_summary
+from .pcap import pcap_analyze
+from .memory import analyze_memory
+from .disk import analyze_disk
+from .windows import analyze_windows
 from .router import route
 from .sqlite_artifacts import inspect_sqlite
 from .timeline import build_timeline, normalize_time
@@ -40,6 +44,10 @@ def doctor():
         "7z": shutil.which("7z"), "yara": shutil.which("yara"),
         "sqlite3": shutil.which("sqlite3"), "bulk_extractor": shutil.which("bulk_extractor"),
         "EvtxECmd": shutil.which("EvtxECmd"), "PECmd": shutil.which("PECmd"),
+        "MFTECmd": shutil.which("MFTECmd"), "LECmd": shutil.which("LECmd"),
+        "RECmd": shutil.which("RECmd"), "AmcacheParser": shutil.which("AmcacheParser"),
+        "mmls": shutil.which("mmls"), "fsstat": shutil.which("fsstat"),
+        "ewfinfo": shutil.which("ewfinfo"),
     }
     return {"toolkit_version": __version__, "tools": tools,
             "note": "Missing tools mean their optional workflows are unavailable. No installations or network requests attempted."}
@@ -60,7 +68,7 @@ def validate_answer(kind: str, value: str, timestamp_encoding: str, assume_timez
         found = bool(re.fullmatch(r"S-1-(\d+-)+\d+", value))
     elif kind == "timestamp":
         try:
-            normalized, basis = normalize_time(value, timestamp_encoding, assume_timezone)
+            normalized, basis, _zone = normalize_time(value, timestamp_encoding, assume_timezone)
             detail = f"Normalized UTC: {normalized}; basis: {basis}"
             found = True
         except (ValueError, OverflowError) as err:
@@ -114,10 +122,43 @@ def parser_setup():
     p = sub.add_parser("pcap-summary", help="offline tshark summary with capture + max packet cap")
     p.add_argument("file", type=Path)
     p.add_argument("--max-packets", type=int, default=50000)
+    p.add_argument("--max-output-bytes", type=int, default=4000000)
+    p.add_argument("--output")
+    p = sub.add_parser("pcap-analyze", help="bounded TShark endpoint, DNS, HTTP, TCP, stream or object workflow")
+    p.add_argument("file", type=Path)
+    p.add_argument("--mode", choices=["endpoints", "dns", "http", "tcp", "stream", "objects"], required=True)
+    p.add_argument("--max-packets", type=int, default=10000)
+    p.add_argument("--timeout", type=int, default=180)
+    p.add_argument("--max-output-bytes", type=int, default=4000000)
+    p.add_argument("--stream-id", type=int)
+    p.add_argument("--output-dir", type=Path)
+    p.add_argument("--output")
+    p = sub.add_parser("windows-artifact", help="parse EVTX, Prefetch, or MFT using installed Zimmerman tools (Windows only)")
+    p.add_argument("file", type=Path)
+    p.add_argument("--kind", choices=["evtx", "prefetch", "mft"], required=True)
+    p.add_argument("--timeout", type=int, default=300)
+    p.add_argument("--max-rows", type=int, default=100000)
+    p.add_argument("--output")
+    p = sub.add_parser("memory-analyze", help="run an allowlisted Volatility 3 plugin in offline mode")
+    p.add_argument("file", type=Path)
+    p.add_argument("--workflow", choices=["windows-processes", "windows-tree", "windows-command-line", "windows-network", "windows-modules", "windows-malfind", "linux-processes", "linux-tree", "linux-command-line", "linux-network", "linux-modules", "linux-module-check"], required=True)
+    p.add_argument("--timeout", type=int, default=300)
+    p.add_argument("--max-output-bytes", type=int, default=4000000)
+    p.add_argument("--output")
+    p = sub.add_parser("disk-analyze", help="read-only TSK/libewf partition, filesystem, file-list, or extraction workflow")
+    p.add_argument("file", type=Path)
+    p.add_argument("--action", choices=["partitions", "filesystem", "files", "ewf-info", "extract"], required=True)
+    p.add_argument("--offset", type=int, default=0, help="partition offset in sectors (not bytes)")
+    p.add_argument("--sector-size", type=int, choices=[512, 1024, 2048, 4096])
+    p.add_argument("--inode")
+    p.add_argument("--extract-to", type=Path, help="new output path for --action extract")
+    p.add_argument("--max-bytes", type=int, default=50_000_000)
+    p.add_argument("--timeout", type=int, default=300)
     p.add_argument("--output")
     p = sub.add_parser("timeline-build", help="merge parser-exported CSV/JSONL files to UTC timeline")
     p.add_argument("--manifest", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--max-events", type=int, default=500000)
     p = sub.add_parser("route", help="rule-based likely artifact/tool suggestions for a CTF question")
     p.add_argument("question")
     p.add_argument("--output")
@@ -131,6 +172,9 @@ def parser_setup():
     p.add_argument("--question", default="")
     p = sub.add_parser("finding-list", help="read existing case ledger")
     p.add_argument("--case", type=Path, required=True)
+    p = sub.add_parser("investigative-summary", help="group sourced ledger entries and explicitly listed unknowns")
+    p.add_argument("--case", type=Path, required=True)
+    p.add_argument("--unknown", action="append", default=[], help="state an unresolved question; repeat as needed")
     p = sub.add_parser("answer-check", help="syntax and timestamp normalization only")
     p.add_argument("--type", required=True, choices=["sha256", "md5", "ipv4", "sid", "timestamp", "hex"])
     p.add_argument("--value", required=True)
@@ -161,9 +205,23 @@ def main(argv=None):
             report = hunt_strings(args.file, pattern=args.pattern, min_length=args.min_length,
                                   max_bytes=args.max_bytes, max_hits=args.max_hits)
         elif args.command == "pcap-summary":
-            report = pcap_summary(args.file, max_packets=args.max_packets)
+            report = pcap_summary(args.file, max_packets=args.max_packets, max_output=args.max_output_bytes)
+        elif args.command == "pcap-analyze":
+            report = pcap_analyze(args.file, mode=args.mode, max_packets=args.max_packets,
+                                  timeout_seconds=args.timeout, stream_id=args.stream_id,
+                                  output_dir=args.output_dir, max_output=args.max_output_bytes)
+        elif args.command == "windows-artifact":
+            report = analyze_windows(args.file, args.kind, timeout_seconds=args.timeout, max_rows=args.max_rows)
+        elif args.command == "memory-analyze":
+            report = analyze_memory(args.file, args.workflow, timeout_seconds=args.timeout,
+                                    max_output=args.max_output_bytes)
+        elif args.command == "disk-analyze":
+            report = analyze_disk(args.file, args.action, offset=args.offset,
+                                  sector_size=args.sector_size, inode=args.inode,
+                                  output=args.extract_to, max_bytes=args.max_bytes,
+                                  timeout_seconds=args.timeout)
         elif args.command == "timeline-build":
-            report = build_timeline(args.manifest, args.output)
+            report = build_timeline(args.manifest, args.output, max_events=args.max_events)
         elif args.command == "route":
             report = route(args.question, RULES_FILE)
         elif args.command == "finding-add":
@@ -172,6 +230,8 @@ def main(argv=None):
                                     confidence=args.confidence, question=args.question)
         elif args.command == "finding-list":
             report = list_findings(args.case)
+        elif args.command == "investigative-summary":
+            report = investigative_summary(args.case, args.unknown)
         elif args.command == "answer-check":
             report = validate_answer(args.type, args.value, args.time_encoding, args.assume_timezone)
         else:

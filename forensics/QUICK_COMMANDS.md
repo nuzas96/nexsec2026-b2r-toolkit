@@ -1,4 +1,4 @@
-# Offline Copy-Paste Quick Commands — NEXSEC Forensics v0.1
+# Offline Copy-Paste Quick Commands — NEXSEC Forensics v0.2
 
 Start in the unzipped folder. Replace `EVIDENCE` and `CASE` with **authorized local paths**; never write a case directory inside the original evidence tree. This is a guide, not a challenge answer.
 
@@ -30,6 +30,33 @@ python3 -m nexsec_dfir sqlite-inspect /path/EVIDENCE/History --table downloads -
 python3 -m nexsec_dfir pcap-summary /path/EVIDENCE/capture.pcapng --max-packets 50000
 ```
 
+## Advanced network, Windows, memory and disk adapters
+
+```bash
+python3 -m nexsec_dfir pcap-analyze /path/EVIDENCE/traffic.pcapng --mode dns --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze /path/EVIDENCE/traffic.pcapng --mode http --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze /path/EVIDENCE/traffic.pcapng --mode stream --stream-id 3
+python3 -m nexsec_dfir pcap-analyze /path/EVIDENCE/traffic.pcapng --mode objects \
+  --output-dir /path/CASE/objects --max-packets 10000
+
+# Windows only; Zimmerman tools must be installed and available on PATH.
+python3 -m nexsec_dfir windows-artifact /path/EVIDENCE/Security.evtx --kind evtx
+python3 -m nexsec_dfir windows-artifact /path/EVIDENCE/example.pf --kind prefetch
+python3 -m nexsec_dfir windows-artifact '/path/EVIDENCE/$MFT' --kind mft
+
+# Volatility 3 runs explicitly offline; required symbols must already be available.
+python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-processes
+python3 -m nexsec_dfir memory-analyze /path/EVIDENCE/memory.raw --workflow windows-network
+
+# Sleuth Kit offsets are sectors. Extraction output must be a new path.
+python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action partitions --sector-size 512
+python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action files --offset 2048
+python3 -m nexsec_dfir disk-analyze /path/EVIDENCE/disk.dd --action extract \
+  --offset 2048 --inode 42 --extract-to /path/CASE/recovered.bin --max-bytes 50000000
+```
+
+Object and disk extraction write to new separate paths. Hash and inspect recovered data; never execute it. See [advanced troubleshooting](docs/TROUBLESHOOTING.md).
+
 ## Search imported artifact-parser CSVs (PECmd / EvtxECmd / MFTECmd)
 
 ```bash
@@ -48,7 +75,7 @@ python3 -m nexsec_dfir timeline-build \
   --output /path/CASE/reports/timeline.csv
 ```
 
-`examples/timeline_sources.json` is a **synthetic sample**. Replace source paths and field mapping for your real parser exports. Invalid timestamps go to `.errors.jsonl`, not silently dropped.
+`examples/timeline_sources.json` is a **synthetic sample**. Replace source paths and field mapping for your real parser exports. Invalid and ambiguous timestamps go to `.errors.jsonl`, not silently dropped. Use a `.jsonl` output suffix for chronological JSONL.
 
 ## Verify answer format and save a sourced finding
 
@@ -62,6 +89,8 @@ python3 -m nexsec_dfir finding-add --case /path/CASE \
 ```
 
 The `--artifact` must **exactly match a relative_path in CASE/manifest.json** and its SHA-256 must still match intake. `answer-check` validates syntax only, never correctness.
+
+The workflow is: intake and hash → identify artifact → route question → run parser → preserve record references → correlate → verify → record the answer and remaining unknowns. `investigative-summary --case /path/CASE --unknown 'Was the transfer successful?'` groups ledger observations, inferences and hypotheses without elevating them.
 
 ## Specialist tool handoff
 

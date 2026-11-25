@@ -39,3 +39,16 @@ def list_findings(case_dir: Path) -> list[dict]:
         return []
     with ledger.open(encoding="utf-8") as f:
         return [json.loads(s) for s in f if s.strip()]
+
+
+def investigative_summary(case_dir: Path, unknowns: list[str] | None = None) -> dict:
+    """Group analyst-entered findings without changing their confidence labels."""
+    rows = list_findings(case_dir)
+    groups = {"confirmed_observations": [], "supported_inferences": [], "hypotheses": []}
+    keys = {"confirmed-observation": "confirmed_observations",
+            "supported-inference": "supported_inferences", "hypothesis": "hypotheses"}
+    for row in rows:
+        groups[keys[row["confidence"]]].append(row)
+    return {"case": str(case_dir), **groups, "unknowns": list(unknowns or []),
+            "finding_count": len(rows),
+            "note": "Categories reflect analyst-entered ledger labels; this summary does not validate evidence or infer causation."}
