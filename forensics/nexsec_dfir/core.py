@@ -46,8 +46,16 @@ def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
 def classify_file(path: Path) -> dict[str, str]:
     with path.open("rb") as fp:
         head = fp.read(512)
+        fp.seek(0, os.SEEK_END)
+        size = fp.tell()
+        tail = b""
+        if size >= 512:
+            fp.seek(-512, os.SEEK_END)
+            tail = fp.read(512)
     prefix = head[:32]
     kinds: list[tuple[bool, str, str]] = [
+        (prefix.startswith(b"vhdxfile"), "vhdx", "VHDX file signature"),
+        (tail.startswith(b"conectix"), "vhd", "VHD footer cookie"),
         (prefix.startswith(b"SQLite format 3\x00"), "sqlite", "SQLite 3 header"),
         (prefix.startswith(b"ElfFile\x00"), "evtx", "Windows EVTX header"),
         (prefix.startswith(b"regf"), "registry-hive", "Windows Registry hive header"),

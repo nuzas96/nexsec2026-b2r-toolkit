@@ -1,8 +1,8 @@
-# NEXSEC Forensics Workbench v0.1 — Evidence-First CTF Forensics
+# NEXSEC Advanced Forensics Workbench v0.2 — Evidence-First CTF Forensics
 
 A **standalone, offline-first, question-driven forensic workbench** (Python standard library) for authorized digital-forensics exercises, written separately from the locked B2R toolkit.
 
-**Status:** v0.1 implementation **validated on synthetic cases** only. It is **not** a universal forensic parser, automated flag solver or comprehensive incident-response platform. Original evidence is never intentionally overwritten, but **reading a file on a writable filesystem may change access metadata (`atime`)**. For strict forensic acquisition, work from a verified copy or a read-only mounted source as permitted by your lab.
+**Status:** v0.2 adds specialist-tool subprocess integrations. Adapter logic and existing workflows are covered by synthetic/mock tests; a synthetic DNS capture was also parsed with installed TShark. Windows parsers and genuine disk/memory images were unavailable for real-tool validation on this Linux host. It is **not** a universal forensic parser, automated flag solver or comprehensive incident-response platform. Original evidence is never intentionally overwritten, but **reading a file on a writable filesystem may change access metadata (`atime`)**. For strict forensic acquisition, work from a verified copy or a read-only mounted source as permitted by your lab.
 
 **One-page offline command reference:** [QUICK_COMMANDS.md](QUICK_COMMANDS.md).
 
@@ -18,20 +18,28 @@ A **standalone, offline-first, question-driven forensic workbench** (Python stan
 | Browser SQLite | `sqlite-inspect` | Inspects schema and up to N sample rows **using a temporary local copy**. Copies WAL/SHM if present. No SQL modifications. |
 | String candidates | `hunt` | ASCII/UTF-16LE excerpts with original byte offsets; bounded size/hits and explicit truncated flag. Not malware detection. |
 | PCAP metadata | `pcap-summary` | Uses optional `tshark -r`, bounded frames and timeout; counts DNS, HTTP hosts, endpoints, protocols, streams. Not flow reconstruction. |
+| PCAP deep triage | `pcap-analyze --mode endpoints/dns/http/tcp/stream/objects` | TShark frame fields retain frame numbers and stream IDs; follow-stream output and HTTP object export are available. Packet cap, timeout and evidence hash checks apply. DNS/connection metadata is not proof of successful transfer. |
+| Windows artifacts | `windows-artifact --kind evtx/prefetch/mft` | Windows-host-only adapters for EvtxECmd, PECmd and MFTECmd. Emits parser source row, candidate record/time columns, observed row and source hash. Registry, LNK, Amcache and JLECmd adapters are not yet implemented. |
+| Memory | `memory-analyze --workflow ...` | Runs allowlisted Volatility 3 Windows/Linux process, tree, command-line, network, modules or malfind plugins with offline mode. Symbol/plugin failures and timeouts are explicit. |
+| Disk image | `disk-analyze --action ...` | Uses TSK `mmls`, `fsstat`, `fls`, `icat` and `ewfinfo` when available. Sector offsets are explicit; extraction is size-capped, hashed and written to a new path. No mounting. |
+| Email and encoding | `email-urls`, `decode-value` | Extracts inert message URLs; supports strict Base64, repeating-key XOR and explicit UTF-16LE/UTF-8 decoding. Never executes recovered scripts. |
+| PowerShell/Registry exports | `powershell-reconstruct`, `registry-inspect` | Reassembles 4104 parser rows by part metadata and maps registry parser CSV/JSONL fields with record provenance. No raw hive parser is included. |
+| Upload chunks | `chunks-reassemble` | Orders parsed JSON chunks, handles exact duplicates, rejects conflicts/missing/invalid Base64, checks optional size/SHA-256, retains frame/stream references. |
+| VHD conversion | `vhd-convert` | Uses qemu-img offline for VHD `vpc` to raw conversion, rejects backing-file chains/unsupported formats, checks source hash and enforces an output-size limit. |
 | Timestamp correlation | `timeline-build` | Merges parser-exported CSV/JSONL into UTC, preserves source references, flags duplicates and invalid/ambiguous timestamps. |
 | Question router | `route` | Transparent keyword rules suggest artifacts, tools, cross-checks and limits. **Does not answer questions**. |
 | Findings ledger | `finding-add/list` | Every finding must cite a SHA-256 indexed artifact, source record and observed value; confidence analyst-supplied. |
 | Answer syntax check | `answer-check` | Validates hash/IP/SID/hex/timestamp **format only**; cannot verify challenge answer correctness. |
 | Environment diagnostics | `doctor` | Checks installed optional forensic tools, never downloads them. |
 
-Core CLI has **zero third-party Python dependencies**. Optional programs such as Volatility 3, TShark, The Sleuth Kit, Zimmerman's tools, Plaso and Autopsy must be installed or provided independently and are **not** bundled here.
+Core CLI has **zero third-party Python dependencies**. Optional programs such as Volatility 3, TShark, The Sleuth Kit, libewf, Zimmerman's tools, Plaso and Autopsy must be installed or provided independently and are **not** bundled here. Volatility 3 is forced offline. Windows parsers only run on Windows; unsupported hosts report an error.
 
 ## 2. Quick start (copy-paste)
 
 Python 3.10+ (3.11+ recommended). Start from the unzipped repository root:
 
 ```bash
-cd nexsec-forensics-v1
+cd nexsec2026-b2r-toolkit/forensics
 python3 -m nexsec_dfir --help
 python3 -m nexsec_dfir doctor
 ```
@@ -137,7 +145,7 @@ These documents contain manual investigation reference commands. They are **not*
 python3 -m unittest discover -s tests -v
 ```
 
-Tests run on isolated temporary synthetic files, without network access, original exercise files or Windows system calls. A PASS proves these specific properties only, not real-EVTX/MFT/Prefetch parsing.
+Tests run on isolated temporary synthetic files, without network access or exercise evidence. External tools are mocked except for a real TShark integration test that generates a synthetic DNS PCAP when TShark is installed. A PASS does not validate interpretation of real EVTX/MFT/Prefetch, memory or disk evidence.
 
 ## 6. Safe handling rules
 
@@ -150,3 +158,9 @@ Tests run on isolated temporary synthetic files, without network access, origina
 - A keyword-routed candidate is not a factual finding. A suspicious file, user, key, process, IP or URL is not proof of malicious activity without corroboration.
 
 **No AI, API keys, remote uploads or network requests are used by this software.** This is a local tool; always follow the access, tool and evidence rules established by your exercise organizer.
+
+## 7. Advanced references
+
+- [Advanced troubleshooting](docs/TROUBLESHOOTING.md)
+- [Validation report and PASS/PARTIAL/SKIPPED status](docs/VALIDATION.md)
+- [Quick commands](QUICK_COMMANDS.md)

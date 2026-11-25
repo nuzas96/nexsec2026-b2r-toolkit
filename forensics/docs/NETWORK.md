@@ -1,56 +1,32 @@
-# Advanced Network & PCAP Forensics Playbook
+# Network Forensics — TShark
 
-Only inspect assigned PCAP/PCAPNG evidence. TShark uses `-r` for an existing capture; no live sniffing or network access is performed by these commands.
+## Supported input and prerequisites
 
-## 1. Preflight
+Accepts an offline PCAP/PCAPNG file readable by installed `tshark`. No live capture, network request or upload is performed.
 
-```bash
-file traffic.pcapng
-tshark -r traffic.pcapng -q -z io,phs
-```
-
-If protocol decoding is incomplete, inspect encapsulation/tunnels, capture truncation, TCP reassembly settings and encrypted traffic rather than assuming "no activity".
-
-## 2. Enumerate conversations / endpoints
-
-```bash
-tshark -r traffic.pcapng -q -z conv,tcp
-tshark -r traffic.pcapng -q -z endpoints,ip
-```
-
-Conversation bytes are not automatically an exfiltration verdict. Note direction, initiator, failed handshakes and whether network capture contains full sessions.
-
-## 3. DNS and HTTP evidence
-
-```bash
-tshark -r traffic.pcapng -Y 'dns.qry.name' -T fields \
-  -e frame.number -e frame.time_epoch -e ip.src -e dns.qry.name
-
-tshark -r traffic.pcapng -Y 'http.request' -T fields \
-  -e frame.number -e frame.time_epoch -e ip.src -e http.host \
-  -e http.request.method -e http.request.uri
-```
-
-A DNS query does not mean the requester successfully connected to or exchanged data with the resolved host.
-
-## 4. TCP streams and object reconstruction
-
-```bash
-tshark -r traffic.pcapng -Y 'tcp.stream == 3' -T fields \
-  -e frame.number -e ip.src -e ip.dst -e tcp.len
-
-# Use Wireshark: Follow > TCP Stream on an actual stream ID.
-# For HTTP objects: File > Export Objects > HTTP (only when relevant).
-```
-
-Check both directions of transfer, request/response status, payload sizes, content encoding, retransmissions and whether a reconstructed file hash is stable. For encrypted HTTPS, content may be unavailable unless decryption keys are explicitly provided by the exercise.
-
-## 5. Workbench overview
+## Usage
 
 ```bash
 python3 -m nexsec_dfir pcap-summary traffic.pcapng --max-packets 50000
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode endpoints --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode dns --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode http --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode tcp --max-packets 10000
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode stream --stream-id 3
+python3 -m nexsec_dfir pcap-analyze traffic.pcapng --mode objects \
+  --output-dir /case/objects --max-packets 10000
 ```
 
-The local `pcap-summary` is a **bounded metadata inventory**, not session reconstruction or protocol exploit analysis. It requires `tshark` and never submits the capture anywhere.
+`--timeout` defaults to 180 seconds. Packet caps are configurable up to 100,000 for detailed modes. `--max-output-bytes` caps captured TShark stdout/stderr and terminates decoding when reached; the report marks truncated output. Object extraction requires a new, separate output directory; the source capture is never used as an output location.
 
-Official documentation: https://www.wireshark.org/docs/man-pages/tshark.html
+## Expected output
+
+Frame records include frame numbers and selected fields: timestamps as raw epoch strings, endpoints, protocol, DNS questions/answers/rcode, HTTP methods/host/URI/status/content length, TCP stream ID/ports/length/flags. Stream mode returns TShark's formatted follow-stream view. Object mode returns each extracted object's path, byte size and SHA-256. `pcap-summary` returns endpoint/protocol/domain/host/stream counts.
+
+## Errors and verification
+
+Missing TShark, malformed captures, timeouts, nonzero exits and output collisions are explicit errors. Verify the evidence SHA-256, capture completeness and stream ID; compare relevant frames in Wireshark and inspect both directions, protocol response/status and reconstructed object hash. TShark display filters and field availability can vary by version.
+
+## Interpretation and limitations
+
+A DNS request does not establish resolution, connection or transfer. A TCP stream or byte count does not establish file exfiltration. HTTP export can reconstruct only supported unencrypted/decrypted objects. Exported files are untrusted and never opened or executed by the adapter. Stream/export output is tool-formatted and should be independently reviewed.

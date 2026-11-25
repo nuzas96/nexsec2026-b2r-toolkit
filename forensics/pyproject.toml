@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexsec-dfir"
-version = "0.1.0"
-description = "Offline evidence-first forensic CTF workbench"
+version = "0.2.0"
+description = "Offline evidence-first forensic CTF workbench with specialist-tool adapters"
 requires-python = ">=3.10"
 
 [project.scripts]

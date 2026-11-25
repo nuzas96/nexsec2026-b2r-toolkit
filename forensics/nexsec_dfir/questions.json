@@ -1,7 +1,7 @@
 [
   {
     "id": "WIN-EXEC", "topic": "Windows program execution and timestamps",
-    "keywords": ["executed", "last run", "last execution", "prefetch", "program launched", "execution time", "run count", "bam", "userassist"],
+    "keywords": ["executed", "last run", "last execution", "prefetch", "program launched", "execution time", "run count", "bam", "userassist", "process creation", "command line", "parent process"],
     "candidate_artifacts": ["Windows Prefetch (including MAM compressed)", "Security 4688 / Sysmon Event 1 if enabled", "BAM/DAM", "UserAssist", "Amcache (supporting, not execution proof alone)"],
     "tools": ["PECmd or suitable Prefetch parser", "EvtxECmd", "RECmd/Registry Explorer"],
     "verification": "Confirm executable identity, per-artifact time semantics, UTC conversion, and corroborating process logs where available.",
@@ -9,7 +9,7 @@
   },
   {
     "id": "WIN-LOGON", "topic": "Windows logons and account attribution",
-    "keywords": ["logon", "login time", "signed in", "failed login", "account", "username", "session", "event 4624", "4625", "user sid"],
+    "keywords": ["logon", "login time", "signed in", "failed login", "account", "username", "user name", "user attribution", "session", "event 4624", "4625", "user sid"],
     "candidate_artifacts": ["Security EVTX 4624, 4625, 4634, 4672", "Sysmon process log", "SAM/SOFTWARE registry hives", "RDP client/server logs"],
     "tools": ["EvtxECmd", "Get-WinEvent on approved forensic Windows", "RECmd"],
     "verification": "Match SID, account, logon type, workstation, Logon ID, and timestamps. Distinguish authentication from interactive login.",
@@ -17,7 +17,7 @@
   },
   {
     "id": "WIN-FS", "topic": "NTFS deletion and filesystem timeline",
-    "keywords": ["deleted", "mft", "usnjrnl", "usn journal", "recycle bin", "file created", "file modified", "filename", "rename", "recovered file"],
+    "keywords": ["deleted", "mft", "usnjrnl", "usn journal", "recycle bin", "file created", "file modified", "filename", "rename", "recovered file", "last modified", "timestamp"],
     "candidate_artifacts": ["$MFT", "$UsnJrnl:$J", "$LogFile", "$Recycle.Bin", "LNK and Jump Lists"],
     "tools": ["MFTECmd", "Sleuth Kit fls/icat/istat", "Autopsy", "Plaso"],
     "verification": "Check MFT record vs path, timestamps, metadata flags, deletion semantics and retrieved bytes/hash.",
@@ -41,7 +41,7 @@
   },
   {
     "id": "NET-EXFIL", "topic": "Network transfer and potential exfiltration",
-    "keywords": ["exfil", "uploaded", "downloaded", "transferred", "bytes sent", "http post", "tcp stream", "file transfer", "data leak", "network traffic"],
+    "keywords": ["exfil", "uploaded", "downloaded", "transferred", "bytes sent", "http post", "tcp stream", "file transfer", "data leak", "network traffic", "ip address", "source ip", "destination ip", "remote ip"],
     "candidate_artifacts": ["PCAP/PCAPNG", "HTTP requests/responses", "TCP streams", "DNS", "SMB", "Host network logs/SRUM"],
     "tools": ["TShark", "Wireshark follow stream / Export Objects", "nexsec_dfir pcap-summary"],
     "verification": "Link request to response and payload bytes, source/destination and period; verify extraction hash if file reconstructed.",
@@ -65,7 +65,7 @@
   },
   {
     "id": "BROWSER", "topic": "Browser history, downloads and SQLite",
-    "keywords": ["browser", "chrome", "firefox", "history", "download history", "cookies", "sqlite", "wal", "webkit"],
+    "keywords": ["browser", "browser activity", "web visit", "chrome", "firefox", "history", "download history", "downloaded file", "cookies", "sqlite", "wal", "webkit"],
     "candidate_artifacts": ["History SQLite and its -wal/-shm", "Downloads tables", "Places.sqlite", "Browser profile files"],
     "tools": ["nexsec_dfir sqlite-inspect", "SQLite Browser on working copy", "timestamp converter"],
     "verification": "Map URL/download records and browser profile, account and timestamp encoding, inspect WAL and deleted records when supported.",
@@ -97,7 +97,7 @@
   },
   {
     "id": "MALWARE", "topic": "Malicious script/executable static investigation",
-    "keywords": ["malware", "powershell", "script", "obfuscated", "pe", "dll", "elf", "autorun", "payload", "hash"],
+    "keywords": ["malware", "powershell", "script", "obfuscated", "pe", "dll", "elf", "autorun", "persistence", "run key", "scheduled task", "service", "payload", "hash"],
     "candidate_artifacts": ["PE/ELF binaries", "PowerShell/script text", "Encoded strings", "Autorun/service definitions", "Hash and import metadata"],
     "tools": ["nexsec_dfir classify/hunt", "strings", "PEStudio/pefile where installed", "YARA on approved copy"],
     "verification": "Separate static candidate IOCs from observed execution; decode using reproducible transformations, verify against host logs.",

@@ -1,40 +1,35 @@
-# Advanced Memory Forensics Playbook — Volatility 3
+# Memory Forensics Adapter — Volatility 3
 
-The workbench does **not** parse raw RAM internally. Use a compatible Volatility 3 installation. Symbols for a particular OS/build may be unavailable offline. A symbol lookup failure is not proof the dump has no artifacts.
+## Supported input and prerequisites
 
-## Windows memory sequence
+Accepts a local memory image readable by the installed Volatility 3 version. The adapter calls `vol` or `volatility3` with `--offline`; remote symbol retrieval is disabled. Symbols must already be available locally. Supported workflows: Windows process list/scan/tree/command-line/network/modules/malfind, file scan/dump, registry hives/key values; Linux processes/tree/command-line (`psaux`)/network/modules/module consistency check.
+
+## Usage
 
 ```bash
-# Use the installed Volatility 3 executable name on your analysis machine.
-vol -f memory.raw windows.info
-vol -f memory.raw windows.pslist
-vol -f memory.raw windows.pstree
-vol -f memory.raw windows.cmdline
-vol -f memory.raw windows.netscan
-vol -f memory.raw windows.malfind
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-processes
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-tree --timeout 600
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-network --output reports/netscan.json
+python3 -m nexsec_dfir memory-analyze linux.mem --workflow linux-processes
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-file-scan
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-dumpfiles \
+  --dump-dir /case/memory-files --pid 1234 --dump-filter 'credential|archive' \
+  --max-dump-bytes 100000000
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-registry-hives
+python3 -m nexsec_dfir memory-analyze memory.raw --workflow windows-registry-key \
+  --registry-key 'Software\\Microsoft\\Windows\\CurrentVersion\\Run'
 ```
 
-Some plugins may be absent or renamed across Volatility versions; check `vol --help` and available plugin listings.
+All plugins have a configurable `--timeout` (default 300 seconds) and `--max-output-bytes` (default 4,000,000, separately capped for stdout/stderr). Reaching the output cap terminates the plugin and marks output truncated. Dump-files also watches its temporary output directory and stops at `--max-dump-bytes` (default 100 MB); only completed, in-limit files are copied to the new dump directory. Each copied file has SHA-1/SHA-256. `--output` refuses to overwrite an existing report.
 
-**Interpretation:**
+## Expected output
 
-1. Confirm the Windows build/profile and image type before trusting process output.
-2. Compare parent/child links, process names, process creation/exit times and command lines. PID reuse can mislead attribution.
-3. Compare connections (netscan) with process identities, plus separately provided host/PCAP logs when available.
-4. Treat malfind suspicious pages as candidates only; benign JIT/runtime pages can produce similar patterns.
-5. For specific injected binaries, compare memory offsets, VAD permissions, mapped files and extracted content hashes.
-6. Record the plugin version, arguments, output record and symbol source; build a timeline using parser exports.
+JSON contains the source artifact and SHA-256, selected Volatility plugin/version, JSON records when emitted, otherwise bounded raw tool output, stderr and truncation state. Dump-files reports inert recovered file paths, original tool filenames, sizes and hashes. Registry plugin reports preserve raw key/value rows. Preserve PID/PPID, timestamps, command line, endpoints, module names and plugin details from the original row. Plugin output fields vary by Volatility version.
 
-## Linux memory
+## Errors and verification
 
-Linux module/symbol support is version-sensitive. Validate actual kernel symbols before attempting Linux process/module plugins; do not reuse Windows plugin names. Memory can be partial, swapped, compressed or captured inconsistently.
+Missing Volatility, timeout, unsupported plugin, nonzero exit, unavailable symbols and unsupported/corrupt image are reported as errors. Check `vol --help`, local symbol inventory and version; confirm OS/build with a suitable info plugin, then rerun the exact plugin against the same hashed source. No symbols are fetched online.
 
-## When stuck
+## Interpretation and limitations
 
-- Wrong OS, unsupported crash dump vs raw image, corrupt acquisition or unsupported build can all prevent correct parsing.
-- First determine whether symbols are present offline. Avoid assuming automatic downloads will work during a restricted exercise.
-- Never run suspect binaries extracted from memory on the analysis host.
-
-References:
-- https://github.com/volatilityfoundation/volatility3
-- https://volatility3.readthedocs.io/
+Process or module presence is an observation, not a malware verdict. Compare process trees, command lines, network artifacts and other evidence; account for PID reuse and incomplete acquisitions. `malfind` is a candidate indicator and needs page-level verification. No actual memory dump was included in validation fixtures.
