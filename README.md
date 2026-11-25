@@ -21,6 +21,10 @@ The nine Bash scripts support authorized investigation from reconnaissance throu
 
 No Python packages, internet access, or AI service is required for local Linux checks. Network and web scripts require connectivity to the specifically authorized target.
 
+## Advanced Forensics Toolkit
+
+- [Forensics Workbench v0.1](forensics/README.md) — separate question-driven forensic tooling, example artifacts, offline guides and synthetic regression tests in [`forensics/`](forensics/). This does not modify the existing Boot2Root scripts.
+
 ## Quick start
 
 Read [B2R_QUICK_START.md](B2R_QUICK_START.md) for command examples, permissions, output handling, and recovery workflow. For manual HTML inspection, hostname clues and virtual-host checks after a web scan, read [Manual Web B2R Workflow](docs/WEB_MANUAL_WORKFLOW.md). For incident response and manual rollback, see [RECOVERY_HARDENING.md](RECOVERY_HARDENING.md); for the short script reference, see [OFFLINE_USAGE.md](OFFLINE_USAGE.md).
